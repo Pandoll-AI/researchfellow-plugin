@@ -1,0 +1,34 @@
+{
+  "version": "v0.1",
+  "created_at": "",
+  "papers": [
+    {
+      "pmid": "",
+      "title": "",
+      "authors": "",
+      "year": "",
+      "journal": "",
+      "design": "",
+      "population": "",
+      "sample_size": null,
+      "exposure": "",
+      "comparator": "",
+      "outcome": "",
+      "effect_measure": "",
+      "effect_size": null,
+      "ci_95": [null, null],
+      "p_value": null,
+      "covariates_adjusted": [],
+      "follow_up": "",
+      "limitations": [],
+      "quality_score": null,
+      "relevance_to_question": ""
+    }
+  ],
+  "summary": {
+    "total_papers": 0,
+    "effect_direction_consistency": "",
+    "identified_gaps": [],
+    "novelty_assessment": ""
+  }
+}
