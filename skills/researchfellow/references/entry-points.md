@@ -159,6 +159,10 @@ Render from `state.json`. If `next_action` is present, use its `label`/`step`. I
    ⚠ {blocker 요약, 최대 3줄}
 ```
 
+The completion denominator is fixed at **12**: Step 13 (Revision Loop) is a cyclic,
+optional stage and is excluded from the count. Show it separately when active, e.g.
+`리뷰 대응 round 2 진행 중`.
+
 Then offer: `[이어서 진행] [상태 자세히] [다른 작업]`, and always also allow
 "새 프로젝트 시작". `상태 자세히` → full dashboard (all step statuses + gate states,
 summarized). `다른 작업` → surface the 5+1 cards for a new project.

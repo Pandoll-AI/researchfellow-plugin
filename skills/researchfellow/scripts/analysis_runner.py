@@ -234,7 +234,9 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
             with open(state_path) as f:
                 state = json.load(f)
         except (json.JSONDecodeError, OSError):
-            state = None
+            # Corrupted state must block, never silently fall through (FR-G4).
+            print("ERROR: state.json exists but is unreadable. Fix it before real analysis.", file=sys.stderr)
+            sys.exit(1)
 
     if (state is not None and check_real_data_gates is not None
             and detect_schema is not None and detect_schema(state)[0] == "v2"):
@@ -243,20 +245,34 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
             print(f"ERROR: Missing required real-data gate approvals: {missing}", file=sys.stderr)
             sys.exit(1)
     elif os.path.exists(gates_path):
-        with open(gates_path) as f:
-            gates = json.load(f)
+        try:
+            with open(gates_path) as f:
+                gates = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            print("ERROR: gates.json exists but is unreadable. Fix it before real analysis.", file=sys.stderr)
+            sys.exit(1)
         required = {"4", "5", "9"}
         approved = {g for g, info in gates.items() if info.get("status") == "approved"}
         missing = required - approved
         if missing:
             print(f"ERROR: Missing required gate approvals: {sorted(missing)}", file=sys.stderr)
             sys.exit(1)
+    else:
+        # No approval evidence at all (no v2 state, no legacy gates.json):
+        # real-data analysis is gated, so absence of gates means blocked.
+        print("ERROR: No gate approval record found (state.json v2 or gates.json). "
+              "Real analysis requires gate.feasibility, gate.protocol and gate.qc approvals.", file=sys.stderr)
+        sys.exit(1)
 
     # Check QC
     qc_path = os.path.join(project_dir, "qc-report.json")
     if os.path.exists(qc_path):
-        with open(qc_path) as f:
-            qc = json.load(f)
+        try:
+            with open(qc_path) as f:
+                qc = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            print("ERROR: qc-report.json exists but is unreadable. Resolve before real analysis.", file=sys.stderr)
+            sys.exit(1)
         if qc.get("has_critical"):
             print("ERROR: QC has critical flags. Resolve before running real analysis.", file=sys.stderr)
             sys.exit(1)
