@@ -21,6 +21,15 @@ import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+# Real-data gate check shares the SAME function state_tool.py uses, so an LLM
+# cannot bypass the gate by editing prose (FR-G4 last line of defense).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from state_tool import check_real_data_gates, detect_schema
+except ImportError:  # pragma: no cover - fallback to legacy gates.json path
+    check_real_data_gates = None
+    detect_schema = None
+
 
 def _safe_div(numerator: float, denominator: float) -> Optional[float]:
     if denominator == 0:
@@ -213,9 +222,27 @@ def run_synthetic(project_dir: str, sap_version: str) -> dict:
 
 
 def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
-    # Check gates
+    # Check real-data gates. Prefer state.json v2 via state_tool's shared
+    # check_real_data_gates (gate.feasibility/protocol/qc). Fall back to the
+    # legacy gates.json {"4","5","9"} logic when state is v1 or absent.
+    state_path = os.path.join(project_dir, "state.json")
     gates_path = os.path.join(project_dir, "gates.json")
-    if os.path.exists(gates_path):
+
+    state = None
+    if os.path.exists(state_path):
+        try:
+            with open(state_path) as f:
+                state = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            state = None
+
+    if (state is not None and check_real_data_gates is not None
+            and detect_schema is not None and detect_schema(state)[0] == "v2"):
+        ok, missing = check_real_data_gates(state)
+        if not ok:
+            print(f"ERROR: Missing required real-data gate approvals: {missing}", file=sys.stderr)
+            sys.exit(1)
+    elif os.path.exists(gates_path):
         with open(gates_path) as f:
             gates = json.load(f)
         required = {"4", "5", "9"}

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "materials": [],
+  "version_groups": {},
+  "_example": {
+    "_comment": "This _example key is documentation only and is ignored at runtime. Copy the shape below into the materials[] array (and version_groups map) when writing a real registry entry.",
+    "material_entry": {
+      "id": "m-001",
+      "filename": "protocol_v3.docx",
+      "stored_as": "materials/9f2a1c0b4d3e_protocol_v3.docx",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "format": "document",
+      "role": "protocol",
+      "confidence": "high",
+      "classified_by": "rule",
+      "status": "confirmed",
+      "lineage": {
+        "version_group": "vg-1",
+        "derived_from": [],
+        "duplicates": []
+      },
+      "extracted_meta": {
+        "title": "Retrospective cohort protocol v3",
+        "doi": null,
+        "pages": 14
+      },
+      "flags": [],
+      "phi": {
+        "screened": true,
+        "finding_count": 0,
+        "severity": "clean",
+        "report": "phi-report_m-001.json"
+      },
+      "promoted_to": ["protocol"],
+      "classified_at": "2026-07-04T10:12:00",
+      "confirmed_at": "2026-07-04T10:15:00",
+      "reclass_history": []
+    },
+    "version_group_entry": {
+      "vg-1": {
+        "normalized_stem": "protocol",
+        "members": ["m-001", "m-004", "m-005"],
+        "representative": "m-001",
+        "all_identical": false
+      }
+    }
+  }
+}
