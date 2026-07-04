@@ -40,9 +40,12 @@ npm install -g @anthropic-ai/claude-code
 터미널에서 Claude Code를 실행(`claude` 입력)한 뒤, 채팅창에 차례로 입력하세요:
 
 ```
-/plugin marketplace add <이 저장소 경로 또는 URL>
+/plugin marketplace add Pandoll-AI/researchfellow-plugin
 /plugin install researchfellow
 ```
+
+> 저장소를 내려받아 쓰는 경우엔 URL 대신 폴더 경로를 넣으면 됩니다:
+> `/plugin marketplace add /path/to/researchfellow-plugin`
 
 ## 시작하기
 

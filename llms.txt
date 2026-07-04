@@ -26,9 +26,9 @@ Option A — session-only load (good for trying it out):
 
     claude --plugin-dir /path/to/researchfellow-plugin
 
-Option B — persistent install via local marketplace, inside a Claude Code session:
+Option B — persistent install via marketplace, inside a Claude Code session:
 
-    /plugin marketplace add /path/to/researchfellow-plugin
+    /plugin marketplace add Pandoll-AI/researchfellow-plugin   # or a local path
     /plugin install researchfellow
 
 Verify: start Claude Code in an empty folder and run `/researchfellow:research`.
