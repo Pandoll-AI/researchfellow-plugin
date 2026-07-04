@@ -1,66 +1,122 @@
-# ResearchFellow (plugin)
+<p align="center">
+  <img src="assets/hero.png" alt="ResearchFellow — Your AI co-researcher, idea to manuscript" width="100%">
+</p>
 
-An AI co-researcher for **retrospective clinical research** — a fellow, not a wizard. It
-joins your study at *any* stage and carries it to a submission-ready manuscript, keeping
-the whole trail auditable. Free tier; the entire 13-step workflow completes offline.
+# ResearchFellow
 
-## Install (local marketplace)
+**연구 아이디어 한 줄만 있어도, 논문 한 편이 완성될 때까지 함께 가는 AI 공동연구자입니다.**
 
-Add this repo as a local plugin marketplace, then install the plugin:
+의학 후향 연구(retrospective study)를 아이디어 → 문헌 → 프로토콜 → 통계분석 → 원고 → 리뷰어 대응까지
+13단계로 안내합니다. 통계나 논문 작성 경험이 없어도 됩니다 — 매 단계에서 무엇을 할지 제안하고,
+중요한 결정은 반드시 여러분에게 확인받고 진행합니다.
+
+> 🔒 **환자 데이터는 절대 여러분의 컴퓨터 밖으로 나가지 않습니다.**
+> 모든 데이터 처리는 로컬에서만 이루어집니다.
+
+---
+
+## 이게 뭔가요?
+
+여러분이 채팅하듯 말하면, ResearchFellow가 연구를 함께 진행합니다:
+
+- 💬 *"당뇨 환자에서 메트포르민이 예후에 미치는 영향이 궁금해요"* → PICO로 구조화하고 연구 설계 시작
+- 📄 *"쓰다 만 원고가 있어요"* → 원고를 읽고 빠진 부분을 진단해서 이어서 진행
+- 📊 *"데이터는 있는데 뭘 연구할지 모르겠어요"* → 데이터에서 연구 후보를 발굴
+- ✉️ *"리뷰어 코멘트가 왔어요"* → 대응 편지와 수정 계획을 함께 작성
+
+## 준비물 (1개)
+
+**[Claude Code](https://claude.com/claude-code)** — Anthropic의 AI 코딩/작업 도우미입니다.
+터미널(맥의 '터미널' 앱, 윈도우의 PowerShell)에서 아래 한 줄로 설치합니다:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+> 터미널이 처음이라면: 맥에서 `Cmd+Space` → "터미널" 검색 → 위 명령어를 복사해 붙여넣고 Enter.
+
+## 설치 (복사해서 붙여넣기 2줄)
+
+터미널에서 Claude Code를 실행(`claude` 입력)한 뒤, 채팅창에 차례로 입력하세요:
 
 ```
-/plugin marketplace add /path/to/researchfellow-plugin
+/plugin marketplace add <이 저장소 경로 또는 URL>
 /plugin install researchfellow
 ```
 
-(Or point Claude Code at the directory containing `.claude-plugin/plugin.json`.) Scripts
-resolve via `${CLAUDE_PLUGIN_ROOT}`; Python 3 (stdlib only) is the only runtime dependency.
+## 시작하기
 
-> **Trigger conflict — disable the old `research-assistant` skill.** This plugin supersedes
-> the legacy `research-assistant` skill. Running both makes `/research` and the research
-> keywords ambiguous. **Disable or remove `research-assistant`** before using ResearchFellow.
-
-## Quickstart
+연구 자료를 모아둘 폴더(없으면 새 폴더)에서 `claude`를 실행하고, 이렇게 입력하세요:
 
 ```
 /research
 ```
 
-If `/research` is not recognized (another skill or plugin claims the short name — e.g.
-the legacy `research-assistant` skill), use the namespaced form:
+> ⚠️ `/research`가 인식되지 않으면 전체 이름을 쓰세요: **`/researchfellow:research`**
+
+그러면 이런 질문이 나타납니다 — **번호만 고르면 시작됩니다:**
 
 ```
-/researchfellow:research
+무엇을 하시겠어요?
+① 연구 아이디어를 이야기하고 싶어요
+② 데이터로 뭘 할 수 있는지 제안받고 싶어요
+③ 논문을 새로 쓰기 시작할래요
+④ 쓰던 논문을 수정하고 싶어요
+⑤ 리뷰어 대응부터 할래요
 ```
 
-- No project yet → pick a starting point (idea / dataset / new manuscript / revise /
-  reviewer response), or just type your idea as the argument.
-- Existing project → resume from the saved point.
+아이디어가 있다면 카드를 고르는 대신 그냥 바로 말해도 됩니다:
 
-`/research status` shows the dashboard; `/research next` advances; `/research step N`
-targets a step. (Same arguments work with the namespaced form.)
+```
+/research 패혈증 환자에서 스타틴 사용과 사망률의 관련성을 보고 싶어요
+```
 
-## The 13 steps
+이후는 대화입니다. 진행 상황은 폴더 안 `.research/`에 자동 저장되므로,
+언제든 껐다가 다시 `/research`만 치면 **"이어서: ○○○"** 하고 이어집니다.
 
-PICO → literature → evidence table → variables → protocol → SAP → table/figure shells →
-synthetic dry-run → data QC → real analysis → manuscript → submission package → revision
-loop. Progress is judged by an **artifact DAG** (not a linear cursor), so you can enter at
-any stage — a half-written draft, a bare dataset, or reviewer comments. Three **hard gates**
-(feasibility, protocol, QC) deterministically block real-data analysis until approved; five
-soft gates are handled in conversation. All state lives in `.research/` (`state.json`,
-`materials.json`, append-only `audit.jsonl`).
+## 13단계 여정
 
-## PHI stays local
+```
+아이디어(PICO) → 문헌 조사 → 근거표 → 변수 정의 → 프로토콜 → 통계분석계획(SAP)
+→ 표·그림 틀 → 모의 분석 → 데이터 QC → 실제 분석 → 원고 → 제출 패키지 → 리뷰 대응
+```
 
-All patient-level data and PHI screening happen on your machine and never leave it.
-`phi_screener.py` flags Korean identifiers (RRN, phone, name, email, birthdate) locally
-and reports only column names and row numbers — never the matched values.
+순서대로 갈 필요 없습니다. 이미 가진 것(프로토콜, 데이터, 초고…)을 주면
+해당 단계부터 시작합니다.
 
-## Optional remote MCP (not required)
+## 안심하고 쓰셔도 되는 이유
 
-A paid remote `researchfellow` MCP server can *deepen* a few steps (novelty check,
-methodology advice, checklist mapping, integrity report, reviewer playbook). **It is
-optional — the free workflow completes fully without it.** To connect, copy
-`.mcp.json.example` to `.mcp.json` and set your server URL. When the server is absent, the
-skill simply skips remote enrichment; only de-identified derivatives are ever sent, after a
-local PHI screen.
+| | |
+|---|---|
+| 🔒 **개인정보 보호** | 환자 데이터는 로컬에서만 처리. 주민번호·연락처가 섞여 있으면 자동으로 경고 |
+| 🧪 **가짜 데이터로 먼저 연습** | 실제 데이터 분석 전, 합성 데이터로 전체 과정을 드라이런 — 실수해도 안전 |
+| 🚦 **함부로 진행하지 않음** | 실제 데이터 분석은 3개 관문(타당성·프로토콜·QC)을 여러분이 직접 승인해야만 실행 |
+| 📜 **모든 결정이 기록됨** | 언제 무엇을 승인했는지 `audit.jsonl`에 전부 남아 감사 가능 |
+| 🚫 **연구 부정 방지 내장** | 합성 결과의 원고 삽입 금지, 근거 없는 수치 주장 금지 등이 시스템 차원에서 차단 |
+
+## 자주 묻는 질문
+
+**Q. 통계 프로그램(R, SPSS)이 필요한가요?**
+아니요. 기본 분석은 내장 도구로 실행됩니다. (파이썬 pandas/statsmodels가 설치돼 있으면 더 많은 분석이 가능해집니다.)
+
+**Q. 인터넷이 필요한가요?**
+문헌 검색(PubMed)에만 필요합니다. 그 외 전 과정은 오프라인으로 완주 가능합니다.
+
+**Q. 비용이 드나요?**
+이 플러그인은 무료입니다. Claude Code 사용 비용(구독 또는 API)만 있으면 됩니다.
+
+**Q. AI(Claude, ChatGPT 등)에게 설치를 맡기고 싶어요.**
+AI 에이전트에게 이 저장소의 **[`llms.txt`](llms.txt)** 를 보여주세요.
+설치부터 첫 실행 검증까지 AI가 따라 할 수 있는 온보딩 가이드입니다.
+
+---
+
+## 더 알아보기 (개발자·연구자용)
+
+- [`REQUIREMENTS.md`](REQUIREMENTS.md) — 요구사항 명세 v0.1
+- [`skills/researchfellow/references/state-machine.md`](skills/researchfellow/references/state-machine.md) — 상태머신 v2 (artifact DAG, gate 체계)
+- [`skills/researchfellow/references/guardrails.md`](skills/researchfellow/references/guardrails.md) — 무결성 가드레일
+- `.mcp.json.example` — (선택) 유료 원격 MCP 연동 자리. 없어도 모든 기능 완주 가능
+
+> **기존 `research-assistant` 스킬 사용자께**: 이름이 겹쳐 `/research`가 가려질 수 있습니다.
+> 구 스킬을 비활성화하거나 `/researchfellow:research`를 사용하세요.

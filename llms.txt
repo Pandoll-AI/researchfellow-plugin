@@ -1,0 +1,91 @@
+# ResearchFellow
+
+> Claude Code plugin: an AI co-researcher for retrospective clinical (medical) research.
+> Guides one study through a 13-step workflow — PICO → literature → evidence table →
+> variables → protocol → SAP → shells → synthetic dry-run → data QC → real analysis →
+> manuscript → submission package → revision loop. Free, local-first. Patient data (PHI)
+> never leaves the user's machine.
+
+This file is an onboarding guide for LLM agents installing or operating this plugin
+on a user's behalf. Follow the steps in order; each has a verification command.
+
+## Identity
+
+- Plugin name: `researchfellow` (manifest: `.claude-plugin/plugin.json`, v0.1.x)
+- One skill: `skills/researchfellow/SKILL.md` (router; details live in `references/`)
+- One command: `/research` → may be namespaced as `/researchfellow:research` if another
+  skill/plugin claims the short name (e.g., a legacy `research-assistant` skill —
+  recommend disabling it)
+- State lives in the user's project folder under `.research/` (human-readable JSON/JSONL/MD)
+
+## Install
+
+Prerequisite: Claude Code CLI (`npm install -g @anthropic-ai/claude-code`).
+
+Option A — session-only load (good for trying it out):
+
+    claude --plugin-dir /path/to/researchfellow-plugin
+
+Option B — persistent install via local marketplace, inside a Claude Code session:
+
+    /plugin marketplace add /path/to/researchfellow-plugin
+    /plugin install researchfellow
+
+Verify: start Claude Code in an empty folder and run `/researchfellow:research`.
+Expected: a "무엇을 하시겠어요?" menu with 5 entry-point cards (idea / dataset /
+new manuscript / revise / reviewer response). No configuration is required (DT-3).
+
+## Operate
+
+- New study: user picks a card, or passes free text: `/research <idea>`.
+- Resume: `/research` in a folder containing `.research/` shows "이어서: <next action>".
+- Arguments: `status` (dashboard), `next` (advance), `step N` (target a step).
+- The skill runs deterministic judges before acting. Never bypass them:
+
+    python3 <plugin>/skills/researchfellow/scripts/state_tool.py validate  --project-dir .research
+    python3 <plugin>/skills/researchfellow/scripts/state_tool.py can-enter --project-dir .research --step N
+    # exit 0 = allowed; exit 2 = blocked (JSON lists missing artifacts/gates); exit 1 = state error
+
+- Three hard gates (gate.feasibility, gate.protocol, gate.qc) physically block real-data
+  analysis: `analysis_runner.py --mode real` exits 1 without their approval. Do not
+  attempt to work around this; it is the integrity contract (FR-G4).
+
+## Rules an installing/operating agent must respect
+
+1. PHI stays local. Never send raw data rows anywhere. Before sending any derivative
+   (PICO, schema, aggregates, draft text) to a remote service, run
+   `scripts/phi_screener.py --data-path <file>` and require exit 0.
+2. Never insert synthetic (dry-run) results into manuscript Results/Conclusions/Abstract.
+3. All state changes append events to `.research/audit.jsonl` (append-only).
+4. v1 projects (legacy numeric gate keys, no schema_version) are read via a built-in
+   mapping — do NOT write a migration script; the skill lazy-upgrades on first change.
+5. Remote MCP (`.mcp.json.example`) is optional. If absent or unreachable, skip those
+   enrichment calls silently; the full 13-step workflow must complete offline.
+
+## Key files
+
+- [README.md](README.md): human-facing quickstart (Korean)
+- [REQUIREMENTS.md](REQUIREMENTS.md): requirement spec v0.1 (FR-E/M/W/T/G/X, NFR, DT)
+- [skills/researchfellow/SKILL.md](skills/researchfellow/SKILL.md): router — read first
+- [skills/researchfellow/references/state-machine.md](skills/researchfellow/references/state-machine.md): state.json v2 schema, artifact DAG, gates, invalidation cascade, v1 mapping
+- [skills/researchfellow/references/entry-points.md](skills/researchfellow/references/entry-points.md): 5+1 entry points, S1 clarity rubric, resume view
+- [skills/researchfellow/references/material-intake.md](skills/researchfellow/references/material-intake.md): material classification (21 roles), briefing, Intake Gate, PHI rules
+- [skills/researchfellow/references/guardrails.md](skills/researchfellow/references/guardrails.md): integrity rules (all free)
+- [skills/researchfellow/references/workflow-steps.md](skills/researchfellow/references/workflow-steps.md): per-step execution detail
+
+## Scripts (all Python 3 stdlib-first, offline except pubmed_search)
+
+- `state_tool.py` — read-only judge: validate / can-enter / gate-check / cascade
+- `material_scanner.py` — classify user files (Stage 0-1), immutable copies to `.research/materials/`
+- `phi_screener.py` — PHI pattern scan; never prints matched values (exit 0/1/2)
+- `pubmed_search.py` — the ONLY network tool (NCBI E-utilities, user's own email/key)
+- `qc_checker.py`, `dsl_compiler.py`, `analysis_runner.py` — QC, cohort DSL→SQL, analysis
+
+## Verify an install (agent checklist)
+
+1. `python3 -c "import json; json.load(open('.claude-plugin/plugin.json'))"` → OK
+2. `python3 -m py_compile skills/researchfellow/scripts/*.py` → OK
+3. Fresh folder + `/researchfellow:research` → 5-card menu appears
+4. Folder with `.research/` + `/researchfellow:research` → resume view ("이어서: …")
+5. `state_tool.py can-enter --step 10` on a fresh project → exit 2 with missing list
+   (proves the gate/DAG judge is wired)
