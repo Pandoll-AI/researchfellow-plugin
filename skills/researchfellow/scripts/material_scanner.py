@@ -654,12 +654,18 @@ def parse_paste_refs(raw: str) -> List[Dict[str, Any]]:
             continue
         doi_m = DOI_RE.search(t)
         pmid_m = re.search(r"PMID[:\s]*?(\d{6,9})", t, re.IGNORECASE)
+        # PubMed article URLs carry the PMID as the path segment.
+        pmid_url_m = re.search(r"pubmed\.ncbi\.nlm\.nih\.gov/(\d{6,9})", t, re.IGNORECASE)
         if pmid_m:
             refs.append({"raw": t, "type": "pmid", "value": pmid_m.group(1)})
+        elif pmid_url_m:
+            refs.append({"raw": t, "type": "pmid", "value": pmid_url_m.group(1)})
         elif doi_m:
             refs.append({"raw": t, "type": "doi", "value": doi_m.group(0).rstrip(").,;")})
         elif re.fullmatch(r"\d{6,9}", t):
             refs.append({"raw": t, "type": "pmid", "value": t})
+        elif re.match(r"https?://", t, re.IGNORECASE):
+            refs.append({"raw": t, "type": "url", "value": t})
         else:
             refs.append({"raw": t, "type": "unknown", "value": t})
     return refs

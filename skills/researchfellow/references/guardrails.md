@@ -7,7 +7,7 @@
 - All outputs carry "NOT REAL DATA" watermark
 - Results cannot be inserted into manuscript Results, Conclusions, or Abstract
 
-### Real-Data Mode (Steps 9-12)
+### Real-Data Mode (Steps 9-13)
 - Requires all three real-data gates: gate.feasibility, gate.protocol, gate.qc
 - Results are publication-grade
 - Full audit trail required
