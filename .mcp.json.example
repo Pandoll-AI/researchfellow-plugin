@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "researchfellow": {
+      "type": "http",
+      "url": "https://mcp.researchfellow.example/v1"
+    }
+  }
+}

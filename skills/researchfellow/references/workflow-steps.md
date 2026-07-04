@@ -1,12 +1,31 @@
-# 12-Step Research Workflow
+# 13-Step Research Workflow
 
 ## Overview
 
-The RRA workflow guides retrospective medical research from initial idea to submission-ready manuscript. Each step builds on the previous, with HITL (Human-In-The-Loop) gates at critical decision points.
+ResearchFellow guides retrospective clinical research from initial idea to a
+submission-ready manuscript, then through reviewer revision. Progress is judged by an
+**artifact DAG**, not a linear cursor — a step is enterable when the artifacts and hard
+gates it depends on are present and valid, regardless of how the project arrived there.
+
+**Entry is DAG-decided, not "previous step done".** Before entering any step N, run:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py can-enter --project-dir .research --step N
+```
+
+On exit 2, explain the returned `missing_artifacts` / `draft_artifacts` /
+`missing_hard_gates` and do not proceed. The full DAG (required `[req]` / recommended
+`[rec]` artifacts, gate anchors, reverse-fill, cascade) lives in
+`references/state-machine.md` — this file gives the per-step *procedure*.
 
 **Modes:**
-- **Planning Mode** (Steps 1-8): Uses synthetic/mock data. Results carry "NOT REAL DATA" watermark.
-- **Real-Data Mode** (Steps 9-12): Requires gate approvals. Results are publication-grade.
+- **Planning Mode** (Steps 1–8): synthetic/mock data. All outputs carry a "NOT REAL DATA"
+  watermark and can never enter the manuscript.
+- **Real-Data Mode** (Steps 9–13): requires the three hard gates
+  (`gate.feasibility`, `gate.protocol`, `gate.qc`). Results are publication-grade.
+
+Gate ids are semantic (not ordinals). Types (hard/soft) and anchors are in
+`references/guardrails.md` and `references/state-machine.md`.
 
 ---
 
@@ -14,36 +33,43 @@ The RRA workflow guides retrospective medical research from initial idea to subm
 
 **Purpose:** Transform a free-text research idea into a structured PICO/PECO framework.
 
-**Inputs:** Free-text idea (disease, exposure, outcome, data source)
+**Entry:** none (`idea` is the first artifact).
 
 **Process:**
-1. Extract Population, Exposure, Comparator, Outcome, Time, Setting
-2. Mark uncertain fields with low confidence
-3. Suggest 2-3 study design candidates (cohort, case-control, cross-sectional)
-4. Identify potential biases
-5. Generate key covariate suggestions
+1. Extract Population, Exposure, Comparator, Outcome, Time, Setting.
+2. Mark uncertain fields `"confidence": "low"` and **tell the user** which parts are
+   uncertain, asking if they can clarify.
+3. Use `templates/pico-template.json` as schema; save to `.research/idea.json`.
+4. Suggest 2–3 study-design candidates (cohort, case-control, cross-sectional) with brief
+   pros/cons; identify potential biases and key covariates.
 
-**Output:** `.research/idea.json`
+**Output:** `idea` → `.research/idea.json`
 
-**Gate:** Gate#1 (Go/No-Go) — Is this clinically meaningful? Is a retrospective time axis feasible?
+**Gate:** `gate.go-no-go` (soft) — clinically meaningful? retrospective time axis feasible?
+not oversaturated? Evaluated on the idea before Literature Scoping.
 
 ---
 
 ## Step 2: Literature Scoping
 
-**Purpose:** Systematic search of existing literature to understand the evidence landscape.
+**Purpose:** Systematic search of existing literature to map the evidence landscape.
 
-**Inputs:** PICO structure, keywords, MeSH terms
+**Entry:** `idea` [req]; `gate.go-no-go` (soft).
 
 **Process:**
-1. Generate PubMed search queries (version-controlled)
-2. Execute searches via `scripts/pubmed_search.py`
-3. Retrieve titles, abstracts, metadata
-4. Iteratively refine queries with user input
+1. Generate PubMed queries from PICO — **show the queries to the user first** and let them
+   adjust before running.
+2. Run:
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/pubmed_search.py \
+       --query "<query>" --email "<email>" --retmax 20 --output .research/literature/
+   ```
+3. Show the top 5–10 titles and ask if the direction looks right; save queries to
+   `.research/literature/queries.json`.
 
-**Output:** `.research/literature/queries.json`, `.research/literature/items/`
+**Output:** `literature` → `.research/literature/`
 
-**Gate:** None (but query finalization recommended)
+**Gate:** none (query finalization recommended).
 
 ---
 
@@ -51,17 +77,19 @@ The RRA workflow guides retrospective medical research from initial idea to subm
 
 **Purpose:** Structured extraction of key data from retrieved literature.
 
-**Inputs:** Literature items (abstracts/full text if available)
+**Entry:** `idea` [req]; `literature` [rec].
 
 **Process:**
-1. For each paper, extract: design, sample, exposure, outcome, effect size, covariates, limitations
-2. Compute effect direction consistency
-3. Identify gaps in the literature
-4. Assess novelty of proposed research
+1. For each paper extract: design, sample, exposure, outcome, effect size, covariates,
+   limitations.
+2. Compute effect-direction consistency; identify gaps; assess novelty.
+3. Build the table with `templates/evidence-table-template.json`.
+4. **Present a summary:** "N편 분석 결과, 효과 방향 일관성은 X, 발견된 gap은 Y."
 
-**Output:** `.research/evidence-table.json`
+**Output:** `evidence_table` → `.research/evidence-table.json`
 
-**Gate:** Gate#2 (Novelty) — Confirmed gap/novelty with PMID evidence
+**Gate:** `gate.novelty` (soft) — identified gap supported by PMID evidence. *(Remote:
+Step 3 can be deepened by `novelty_check` if the MCP server is configured — optional.)*
 
 ---
 
@@ -69,19 +97,19 @@ The RRA workflow guides retrospective medical research from initial idea to subm
 
 **Purpose:** Define all variables needed for the study.
 
-**Inputs:** PICO, evidence table, dataset schema (if available)
+**Entry:** `idea` [req]; `evidence_table` [rec]; `gate.novelty` (soft).
 
 **Process:**
-1. List required variables: exposure, outcome, covariates, time variables, exclusion criteria
-2. Specify definitions, coding, measurement windows
-3. Label each as required/recommended/optional
-4. If dataset schema provided: attempt auto-mapping, flag unmapped variables
+1. List required variables: exposure, outcome, covariates, time variables, exclusions.
+2. Specify definitions, coding, measurement windows; label required/recommended/optional.
+3. If a dataset schema is provided, attempt auto-mapping and **flag unmapped variables**.
+4. Present the list organized by category (exposure / outcome / covariates / time).
 
-**Output:** `.research/variables.json`
+**Output:** `variables` → `.research/variables.json`
 
-**Gates:**
-- Gate#3 (Endpoint) — Primary endpoint confirmed
-- Gate#4 (Feasibility) — Required variables mappable, time axis available
+**Gate:** `gate.endpoint` (soft) — primary endpoint confirmed (measurement + time window).
+Variable feasibility feeds the **hard** `gate.feasibility`, which is enforced later at
+Step 9 entry.
 
 ---
 
@@ -89,16 +117,18 @@ The RRA workflow guides retrospective medical research from initial idea to subm
 
 **Purpose:** Generate a formal study protocol document.
 
-**Inputs:** PICO, evidence, variables, study design decisions
+**Entry:** `idea` [req], `variables` [req]; `evidence_table` [rec]; `gate.endpoint` (soft).
 
 **Process:**
-1. Fill protocol template with accumulated data
-2. Include: background, objectives, methods, design, cohort definition, variables, analysis outline, ethics, limitations
-3. Version the document
+1. Fill `templates/protocol-template.md` from accumulated project data.
+2. Include background, objectives, methods, design, cohort definition, variables, analysis
+   outline, ethics, limitations; version the document.
+3. **Show a summary** of key decisions (design, cohort, endpoints) before generating.
 
-**Output:** `.research/protocol.md`
+**Output:** `protocol` → `.research/protocol.md`
 
-**Gate:** Gate#5 (Protocol Approval) — Required before real-data execution
+**Gate:** `gate.protocol` (**hard**) — protocol reviewed and approved. Required (with
+`gate.feasibility`) before any real-data step; enforced deterministically at Step 9 entry.
 
 ---
 
@@ -106,18 +136,16 @@ The RRA workflow guides retrospective medical research from initial idea to subm
 
 **Purpose:** Pre-specify all analyses before seeing real data.
 
-**Inputs:** Protocol, variable spec, outcome type, design
+**Entry:** `protocol` [req], `variables` [req].
 
 **Process:**
-1. Select primary analysis model based on outcome type and design
-2. Define sensitivity analyses with rationale
-3. Define pre-specified subgroup analyses
-4. Specify missing data handling strategy
-5. Any analysis added after SAP approval → automatically labeled "exploratory"
+1. Select the primary analysis model from outcome type and design.
+2. Pre-specify sensitivity and subgroup analyses; specify missing-data handling.
+3. Tell the user: "SAP 승인 후 추가되는 분석은 자동으로 'exploratory'로 표시됩니다."
 
-**Output:** `.research/sap.md`
+**Output:** `sap` → `.research/sap.md`
 
-**Gate:** None (locked at Gate#5)
+**Gate:** none. *(Remote: Step 6 can be deepened by `methodology_advisor` if configured.)*
 
 ---
 
@@ -125,18 +153,14 @@ The RRA workflow guides retrospective medical research from initial idea to subm
 
 **Purpose:** Create empty structures for all planned tables and figures.
 
-**Inputs:** SAP, journal limits (if known)
+**Entry:** `sap` [req].
 
-**Process:**
-1. Generate Table 1 shell (baseline characteristics)
-2. Generate primary analysis results table
-3. Generate subgroup/sensitivity tables
-4. Generate cohort flow diagram structure
-5. Generate figure shells (forest plot, survival curve, etc.)
+**Process:** generate Table 1 shell, primary results table, subgroup/sensitivity tables,
+cohort flow diagram, and figure shells (forest plot, survival curve).
 
-**Output:** `.research/shells/`
+**Output:** `shells` → `.research/shells/`
 
-**Gate:** None
+**Gate:** none.
 
 ---
 
@@ -144,44 +168,51 @@ The RRA workflow guides retrospective medical research from initial idea to subm
 
 **Purpose:** Verify the entire analysis pipeline using synthetic data.
 
-**Inputs:** SAP, variable definitions, analysis code
+**Entry:** `sap` [req], `variables` [req]; `shells` [rec].
 
 **Process:**
-1. Generate synthetic data based on variable specs
-2. Run end-to-end analysis pipeline
-3. Verify output format and completeness
-4. Mark all outputs with "NOT REAL DATA" watermark
+1. Explain: "이 단계는 가짜 데이터로 분석 파이프라인이 제대로 작동하는지 확인하는 것입니다.
+   실제 결과가 아닙니다."
+2. Run:
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py \
+       --mode synthetic --project-dir .research --sap-version v0.1
+   ```
+3. Show results with a clear "NOT REAL DATA" label.
 
-**Output:** `.research/analysis/synthetic/`
+**Output:** `synthetic_results` → `.research/analysis/synthetic/`
 
-**Critical Rule:** Synthetic results MUST NOT be used in manuscript Results, Conclusions, or Abstract.
+**Critical rule:** synthetic results MUST NOT enter manuscript Results/Conclusions/Abstract.
 
-**Gate:** None
+**Gate:** none.
 
 ---
 
 ## Step 9: Data Preparation & QC
 
-**Purpose:** Extract real data and verify quality.
+**Purpose:** Extract real data and verify quality. **This is the Real-Data Mode boundary.**
 
-**Inputs:** Cohort DSL definition, dataset access
+**Entry:** `protocol` [req], `variables` [req]; **hard gates `gate.feasibility` +
+`gate.protocol` must be approved** (deterministically checked by `can-enter --step 9`).
 
 **Process:**
-1. Define cohort using Cohort DSL (see `cohort-dsl.md`)
-2. Compile DSL to SQL via `scripts/dsl_compiler.py`
-3. User executes extraction query
-4. Run QC checks via `scripts/qc_checker.py`:
-   - Outcome date after index date
-   - Missing data rates
-   - Distribution anomalies
-   - Coding consistency
-   - Duplicate detection
+1. Explain the transition: "여기서부터 실제 데이터를 다룹니다. feasibility·protocol 게이트
+   승인이 필요합니다."
+2. Define the cohort with the Cohort DSL (see `references/cohort-dsl.md`) and compile:
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/dsl_compiler.py \
+       --dsl .research/extraction-plan.dsl --output .research/extraction-plan.sql
+   ```
+3. After the user extracts the data, run QC:
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/qc_checker.py \
+       --data-path <path> --output .research/qc-report.json
+   ```
+4. Show the QC summary clearly — critical issues in **bold**.
 
-**Output:** QC report, extraction plan
+**Output:** `extraction_plan`, `qc_report` → `.research/qc-report.json`
 
-**Gate:** Gate#9 (Data QC) — Critical flags must be resolved before analysis
-
-**Blockers:** Analysis blocked if QC has critical flags (e.g., outcome before index date)
+**Gate:** `gate.qc` (**hard**) — no critical QC flags (or explained/excluded). Blocks Step 10.
 
 ---
 
@@ -189,39 +220,48 @@ The RRA workflow guides retrospective medical research from initial idea to subm
 
 **Purpose:** Execute pre-specified analyses on real data.
 
-**Prerequisites:** Gate#4, Gate#5, Gate#9 must be approved.
+**Entry:** `sap` [req], `qc_report` [req]; **hard `gate.qc` approved, and the Step-9 hard
+gates (`gate.feasibility`, `gate.protocol`) still approved.** Verify with:
 
-**Inputs:** Real data, approved SAP
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py gate-check --project-dir .research --for real-analysis
+```
 
 **Process:**
-1. Verify all required gates are approved
-2. Run analysis via `scripts/analysis_runner.py` (real mode)
-3. Generate tables and figures
-4. Label all outputs as pre-specified or exploratory
-5. Run model diagnostics
+1. Run (the runner imports the *same* gate-check function — an unapproved gate physically
+   blocks the run, FR-G4):
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py \
+       --mode real --project-dir .research --data-path <path>
+   ```
+2. Present effect sizes, confidence intervals, p-values; label each analysis pre-specified
+   or exploratory; run model diagnostics.
 
-**Output:** `.research/analysis/real/`
+**Output:** `real_results` → `.research/analysis/real/`
 
-**Gate:** Gate#10 (Results Interpretation)
+**Gate:** `gate.results` (soft) — pre-specified vs exploratory labeled, estimates plausible.
 
 ---
 
 ## Step 11: Manuscript
 
-**Purpose:** Generate IMRD manuscript draft.
+**Purpose:** Generate an IMRD manuscript draft.
 
-**Inputs:** Protocol, SAP, real analysis results, evidence table
+**Entry:** `real_results` [req], `protocol` [req], `sap` [req]; `evidence_table` [rec];
+`gate.results` (soft).
 
 **Process:**
-1. Generate manuscript using IMRD template
-2. Methods section auto-matched against protocol
-3. Results reference only real analysis outputs
-4. Discussion includes required bias/limitation paragraphs
-5. Run STROBE/RECORD checklist mapping
+1. Generate from `templates/manuscript-template.md`; Methods auto-matched to the protocol.
+2. **Results reference only real analysis outputs.** Discussion includes the required
+   bias/limitations paragraphs. If any artifact is `imported`/`draft`, surface its
+   provenance in **Limitations** (FR-G5).
+3. Run the STROBE/RECORD checklist mapping (see `references/checklist-templates.md`).
+4. **Show coverage:** "22개 항목 중 N개 충족, 누락 항목: ...".
 
-**Output:** `.research/manuscript.md`, `.research/checklist.json`
+**Output:** `manuscript`, `checklist` → `.research/manuscript.md`, `.research/checklist.json`
 
-**Gate:** Gate#11 (Manuscript Approval)
+**Gate:** `gate.manuscript` (soft) — Methods match protocol, every numeric claim references
+a table/figure, checklist coverage adequate. *(Remote: `checklist_map` can deepen Step 11.)*
 
 ---
 
@@ -229,15 +269,43 @@ The RRA workflow guides retrospective medical research from initial idea to subm
 
 **Purpose:** Compile all artifacts for journal submission.
 
-**Inputs:** All approved artifacts
+**Entry:** `manuscript` [req], `checklist` [req]; `gate.manuscript` (soft).
+
+**Process:** compile manuscript, tables, figures, supplements; generate the checklist
+report and an audit-trail (provenance) summary; verify all gates approved; format per the
+target journal's guidelines if specified.
+
+**Output:** `submission_package` → `.research/submission/`
+
+**Gate:** none (final for the initial submission). *(Remote: `integrity_report` optional.)*
+
+---
+
+## Step 13: Revision Loop
+
+**Purpose:** Respond to reviewer comments after submission. **The only re-enterable step.**
+
+**Entry:** `manuscript` [req] valid **+ a `reviewer_comments` material** registered in
+`materials.json`.
+
+**Rounds convention:** each reviewer round appends an entry to `steps.13.rounds`:
+
+```json
+{ "round": 1, "comments_material": "m-012",
+  "response_letter": "revision/round-1/response.md",
+  "diff": "revision/round-1/diff.md", "closed_at": null }
+```
 
 **Process:**
-1. Compile: manuscript, tables, figures, supplementary materials
-2. Generate checklist report
-3. Generate audit trail summary (provenance)
-4. Verify all gates approved
-5. Format per target journal guidelines (if specified)
+1. Parse the reviewer comments into a point-by-point issue list.
+2. For each point, revise the manuscript and record the change in
+   `revision/round-<N>/diff.md`; draft the reply in
+   `revision/round-<N>/response.md`.
+3. When the letter + diff are finalized, set that round's `closed_at`. **A new round opens
+   a *new* entry — never mutate a closed one.**
+4. If a revision bumps `manuscript` (version increase), run `cascade --changed manuscript`
+   and apply the result before continuing.
 
-**Output:** Final submission package
+**Output:** `revision/round-<N>/` (loops)
 
-**Gate:** None (final)
+**Gate:** none. *(Remote: `reviewer_playbook` can deepen Step 13 if configured.)*
