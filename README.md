@@ -26,12 +26,19 @@ resolve via `${CLAUDE_PLUGIN_ROOT}`; Python 3 (stdlib only) is the only runtime 
 /research
 ```
 
+If `/research` is not recognized (another skill or plugin claims the short name — e.g.
+the legacy `research-assistant` skill), use the namespaced form:
+
+```
+/researchfellow:research
+```
+
 - No project yet → pick a starting point (idea / dataset / new manuscript / revise /
   reviewer response), or just type your idea as the argument.
 - Existing project → resume from the saved point.
 
 `/research status` shows the dashboard; `/research next` advances; `/research step N`
-targets a step.
+targets a step. (Same arguments work with the namespaced form.)
 
 ## The 13 steps
 
