@@ -2,7 +2,7 @@
   "mcpServers": {
     "researchfellow": {
       "type": "http",
-      "url": "https://mcp.researchfellow.example/v1"
+      "url": "https://researchfellow.vercel.app/mcp"
     }
   }
 }
