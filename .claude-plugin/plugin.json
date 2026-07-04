@@ -1,0 +1,7 @@
+{
+  "name": "researchfellow",
+  "version": "0.1.0",
+  "description": "AI co-researcher for retrospective clinical research — idea to manuscript in 13 steps, PHI stays local",
+  "keywords": ["research", "medical", "retrospective", "manuscript", "PICO"],
+  "license": "MIT"
+}
