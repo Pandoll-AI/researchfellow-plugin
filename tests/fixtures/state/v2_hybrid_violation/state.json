@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "project_name": "fixture-v2-hybrid-violation",
+  "steps": {
+    "1": { "status": "completed", "name": "PICO Structuring" }
+  },
+  "artifacts": {},
+  "gates": {
+    "4": { "status": "approved", "type": "hard" },
+    "5": { "status": "approved", "type": "hard" },
+    "9": { "status": "approved", "type": "hard" }
+  }
+}

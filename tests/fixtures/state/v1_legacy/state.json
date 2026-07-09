@@ -1,0 +1,12 @@
+{
+  "project_name": "fixture-v1-legacy",
+  "steps": {
+    "1": { "status": "completed", "name": "PICO Structuring" },
+    "9": { "status": "completed", "name": "Data Prep & QC" }
+  },
+  "gates": {
+    "4": { "status": "approved" },
+    "5": { "status": "approved" },
+    "9": { "status": "pending" }
+  }
+}

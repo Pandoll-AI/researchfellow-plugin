@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "project_name": "fixture-v2-clean",
+  "execution_mode": "planning",
+  "steps": {
+    "1": { "status": "completed", "name": "PICO Structuring" },
+    "2": { "status": "in_progress", "name": "Literature Scoping" }
+  },
+  "artifacts": {
+    "idea": { "validity": "valid" }
+  },
+  "gates": {
+    "gate.go-no-go":    { "status": "pending",  "type": "soft", "retroactive": false },
+    "gate.feasibility": { "status": "pending",  "type": "hard", "retroactive": false },
+    "gate.protocol":    { "status": "pending",  "type": "hard", "retroactive": false },
+    "gate.qc":          { "status": "pending",  "type": "hard", "retroactive": false }
+  }
+}

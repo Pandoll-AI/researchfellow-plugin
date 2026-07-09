@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "project_name": "fixture-v2-draft-downstream",
+  "steps": {
+    "5": { "status": "completed", "name": "Protocol" },
+    "6": { "status": "completed", "name": "SAP" }
+  },
+  "artifacts": {
+    "protocol": { "validity": "draft" },
+    "sap": { "validity": "valid" }
+  },
+  "gates": {
+    "gate.feasibility": { "status": "pending", "type": "hard", "retroactive": false }
+  }
+}

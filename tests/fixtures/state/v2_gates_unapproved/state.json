@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "project_name": "fixture-v2-gates-unapproved",
+  "execution_mode": "real",
+  "steps": {
+    "9": { "status": "completed", "name": "Data Prep & QC" }
+  },
+  "artifacts": {
+    "protocol": { "validity": "valid" },
+    "sap": { "validity": "valid" },
+    "qc_report": { "validity": "valid" }
+  },
+  "gates": {
+    "gate.feasibility": { "status": "approved", "type": "hard", "retroactive": false },
+    "gate.protocol":    { "status": "approved", "type": "hard", "retroactive": false },
+    "gate.qc":          { "status": "pending",  "type": "hard", "retroactive": false }
+  }
+}
