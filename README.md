@@ -1,5 +1,17 @@
 <p align="center">
-  <img src="assets/hero.png" alt="ResearchFellow — Your AI co-researcher, idea to manuscript" width="100%">
+  <a href="https://researchfellow.vercel.app">
+    <img src="assets/hero.png" alt="ResearchFellow — Your AI co-researcher, idea to manuscript" width="100%">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://researchfellow.vercel.app"><b>웹사이트</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://researchfellow.vercel.app/usage.html">사용법</a>
+  &nbsp;·&nbsp;
+  <a href="llms.txt">AI 온보딩</a>
+  &nbsp;·&nbsp;
+  <a href="#설치-복사해서-붙여넣기-2줄">설치</a>
 </p>
 
 # ResearchFellow

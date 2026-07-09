@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="640" viewBox="0 0 1600 640">
+  <defs>
+    <style>
+      .ink{fill:#111418}.muted{fill:#5F6672}.accent{fill:#0F766E}
+      .sg{}
+      .b{font-family:'SG Bold',sans-serif}.m{font-family:'SG Medium',sans-serif}.r{font-family:'SG Regular',sans-serif}
+    </style>
+  </defs>
+
+  <!-- paper -->
+  <rect width="1600" height="640" fill="#FAF9F6"/>
+
+  <!-- faint editorial column grid -->
+  <g stroke="#E3DFD7" stroke-width="1" opacity="0.5">
+    <line x1="80"  y1="96" x2="80"  y2="560"/>
+    <line x1="1520" y1="96" x2="1520" y2="560"/>
+  </g>
+
+  <!-- masthead kicker + rule -->
+  <text x="80"   y="66" class="sg m muted" font-size="15" letter-spacing="4">CLINICAL RESEARCH · CO-INVESTIGATOR</text>
+  <text x="1520" y="66" class="sg m muted" font-size="15" letter-spacing="4" text-anchor="end">IDEA&#160;&#160;→&#160;&#160;MANUSCRIPT</text>
+  <line x1="80" y1="88" x2="1520" y2="88" stroke="#111418" stroke-width="1.5"/>
+
+  <!-- wordmark -->
+  <rect x="80" y="150" width="60" height="60" fill="#0F766E"/>
+  <text x="160" y="214" class="sg b ink" font-size="90" letter-spacing="-1.5">ResearchFellow</text>
+
+  <!-- tagline -->
+  <text x="82" y="286" class="sg m muted" font-size="31">Your AI co-researcher — from a one-line idea to a submission-ready manuscript.</text>
+
+  <!-- pipeline timeline -->
+  <g>
+    <line x1="150" y1="440" x2="1450" y2="440" stroke="#111418" stroke-width="1.5"/>
+    <!-- nodes: x centers -->
+    <!-- PICO 150, LITERATURE 366, PROTOCOL 583, QC 800(gate), ANALYSIS 1017(gate), MANUSCRIPT 1233, REVISION 1450 -->
+    <g class="sg m" font-size="14.5" letter-spacing="1.6" text-anchor="middle">
+      <!-- normal nodes -->
+      <rect x="142" y="432" width="16" height="16" fill="#FAF9F6" stroke="#111418" stroke-width="1.5"/>
+      <text x="150" y="474" class="muted">PICO</text>
+      <rect x="358" y="432" width="16" height="16" fill="#FAF9F6" stroke="#111418" stroke-width="1.5"/>
+      <text x="366" y="474" class="muted">LITERATURE</text>
+      <rect x="575" y="432" width="16" height="16" fill="#FAF9F6" stroke="#111418" stroke-width="1.5"/>
+      <text x="583" y="474" class="muted">PROTOCOL</text>
+      <!-- hard gates -->
+      <rect x="789" y="428" width="22" height="22" fill="#0F766E"/>
+      <path d="M794 439 l4 4 l7 -8" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="800" y="476" class="accent b">QC</text>
+      <rect x="1006" y="428" width="22" height="22" fill="#0F766E"/>
+      <path d="M1011 439 l4 4 l7 -8" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="1017" y="476" class="accent b">ANALYSIS</text>
+      <!-- normal nodes -->
+      <rect x="1225" y="432" width="16" height="16" fill="#FAF9F6" stroke="#111418" stroke-width="1.5"/>
+      <text x="1233" y="474" class="muted">MANUSCRIPT</text>
+      <rect x="1442" y="432" width="16" height="16" fill="#FAF9F6" stroke="#111418" stroke-width="1.5"/>
+      <text x="1450" y="474" class="muted">REVISION</text>
+    </g>
+    <!-- gate bracket -->
+    <path d="M789 496 v8 h239 v-8" fill="none" stroke="#0F766E" stroke-width="1.5"/>
+    <text x="908" y="524" class="sg m accent" font-size="13.5" letter-spacing="2.5" text-anchor="middle">REAL-DATA HARD GATES</text>
+  </g>
+
+  <!-- bottom rule + metadata -->
+  <line x1="80" y1="566" x2="1520" y2="566" stroke="#E3DFD7" stroke-width="1"/>
+  <text x="80"   y="596" class="sg r muted" font-size="14.5" letter-spacing="2">13-STEP HARNESS · PHI STAYS LOCAL · FREE CLAUDE CODE PLUGIN</text>
+  <text x="1520" y="596" class="sg m ink" font-size="14.5" letter-spacing="1.5" text-anchor="end">researchfellow.vercel.app</text>
+</svg>
