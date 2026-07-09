@@ -277,8 +277,8 @@ these steps; the free workflow completes fully without it.
 |---|---|
 | 3 | `novelty_check` |
 | 6 | `methodology_advisor` |
-| 11 | `checklist_map` |
-| 12 | `integrity_report` |
+| 11 | `checklist_map` (deep critique), `journal_fit` |
+| 12 | `integrity_report` (sign) / `verify_report` (**free for anyone**) |
 | 13 | `reviewer_playbook` |
 
 Rules: **①** when available, send **only de-identified derivatives** (PICO, schema,
