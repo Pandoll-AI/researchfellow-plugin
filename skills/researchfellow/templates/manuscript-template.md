@@ -1,12 +1,25 @@
+<!-- ResearchFellow manuscript scaffold — DESIGN-AWARE.
+     Default = RETROSPECTIVE OBSERVATIONAL (cohort/case-control/cross-sectional) →
+     STROBE, plus RECORD when data are routinely collected (EMR/claims/registry).
+     Prediction models → use a TRIPOD-shaped template instead.
+     Voice: match a target journal's structured-abstract labels — see
+     references/exemplars/observational-manuscript-style.md.
+     Coverage is screened by scripts/checklist_map.py; the "REPORTING:" anchors
+     below map each section to its reporting items. Every number must trace to an
+     analysis output table (never write a number the script didn't produce). -->
+
 # {{title}}
+<!-- REPORTING: STROBE-1a — state the design (e.g. "retrospective cohort study") in the title -->
 
 ## Abstract
+<!-- REPORTING: STROBE-1b structured abstract; match target-journal labels (exemplars) -->
 
 **Background:** {{abstract_background}}
 
 **Methods:** {{abstract_methods}}
 
 **Results:** {{abstract_results}}
+<!-- REPORTING: lead with absolute event rates in both groups, then the relative effect + 95% CI -->
 
 **Conclusions:** {{abstract_conclusions}}
 
@@ -21,21 +34,27 @@
 ## Methods
 
 ### Study Design and Data Source
+<!-- REPORTING: STROBE-4 design; STROBE-5 setting/dates; STROBE-8 data sources; RECORD-R1 data type & purpose; RECORD-R4 study period -->
 {{methods_design}}
 
 ### Study Population
+<!-- REPORTING: STROBE-6a eligibility & selection; time-zero alignment (methodology.md §0) -->
 {{methods_population}}
 
 ### Exposure and Outcome Definitions
+<!-- REPORTING: STROBE-7 variables defined; RECORD-R5 codes (ICD/ATC); RECORD-R6 code validation -->
 {{methods_exposure_outcome}}
 
 ### Covariates
+<!-- REPORTING: STROBE-7 confounders/effect modifiers defined -->
 {{methods_covariates}}
 
 ### Statistical Analysis
+<!-- REPORTING: STROBE-12a methods incl. confounder control (name the strategy: multivariable/PS/IPTW/g-comp); STROBE-12c missing-data handling; report absolute + relative effects -->
 {{methods_statistics}}
 
 ### Sensitivity and Subgroup Analyses
+<!-- REPORTING: STROBE-12e/17 sensitivity (E-value, alt definitions, negative controls); STROBE-12b subgroups/interactions; RECORD-R8 code-definition sensitivity -->
 {{methods_sensitivity}}
 
 ### Ethical Approval
@@ -44,14 +63,17 @@
 ## Results
 
 ### Study Population
+<!-- REPORTING: STROBE-13a numbers at each stage (eligible→included→analyzed / flow diagram) -->
 {{results_population}}
 
 ### Baseline Characteristics
+<!-- REPORTING: STROBE-14a characteristics; after PS matching/weighting show SMD, not p-values -->
 {{results_baseline}}
 
 *See Table 1.*
 
 ### Primary Analysis
+<!-- REPORTING: STROBE-15 outcome events; STROBE-16a unadjusted AND adjusted estimate + 95% CI; STROBE-16c absolute risk/difference -->
 {{results_primary}}
 
 *See Table 2 and Figure 1.*

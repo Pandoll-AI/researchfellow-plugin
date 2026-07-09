@@ -51,3 +51,36 @@ def test_v1_gate_map_and_types_match_doc(references_dir):
 def test_real_data_gates_are_the_three_hard_gates():
     hard_in_code = {g for g, t in state_tool.GATE_TYPE.items() if t == "hard"}
     assert set(state_tool.REAL_DATA_GATES) == hard_in_code
+
+
+# --- checklist JSON coherence (single-source integrity) ---
+
+import json  # noqa: E402
+import pathlib  # noqa: E402
+
+
+def _checklists(references_dir):
+    for path in sorted((references_dir / "checklists").glob("*.json")):
+        yield path.stem, json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_checklist_ids_unique_and_well_formed(references_dir):
+    seen_files = 0
+    for name, cl in _checklists(references_dir):
+        seen_files += 1
+        ids = [i["id"] for i in cl["items"]]
+        assert len(ids) == len(set(ids)), f"duplicate ids in {name}"
+        for item in cl["items"]:
+            assert isinstance(item.get("required"), bool), f"{item['id']} required must be bool"
+            assert item.get("anchors"), f"{item['id']} needs anchors for coverage screening"
+            assert item.get("section")
+    assert seen_files >= 3  # strobe + record + tripod
+
+
+def test_every_checklist_guideline_is_documented(references_dir):
+    """Adding a checklist JSON without documenting it in checklist-templates.md
+    (the human-readable source) breaks the build."""
+    doc = (references_dir / "checklist-templates.md").read_text(encoding="utf-8").upper()
+    for _name, cl in _checklists(references_dir):
+        assert cl["guideline"].upper() in doc, f"{cl['guideline']} undocumented in checklist-templates.md"
+

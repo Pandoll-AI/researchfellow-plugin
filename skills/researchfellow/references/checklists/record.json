@@ -1,0 +1,16 @@
+{
+  "guideline": "RECORD",
+  "version": "v1",
+  "extends": "STROBE",
+  "applies_to": ["cohort", "case_control", "cross_sectional"],
+  "note": "STROBE extension for routinely-collected health data (EMR/claims/registry). Apply IN ADDITION to STROBE when data are routinely-collected — the core domain of retrospective EMR research.",
+  "items": [
+    {"id": "RECORD-R1", "section": "Methods", "label": "Type of data + purpose of collection", "required": true, "anchors": ["electronic health record", "ehr", "claims", "registry", "administrative", "routinely collected"]},
+    {"id": "RECORD-R2", "section": "Methods", "label": "Data cleaning methods", "required": false, "anchors": ["data cleaning", "cleaned", "preprocess"]},
+    {"id": "RECORD-R3", "section": "Methods", "label": "Record linkage", "required": false, "anchors": ["linkage", "linked", "record linkage"]},
+    {"id": "RECORD-R4", "section": "Methods", "label": "Study period start/end dates", "required": true, "anchors": ["study period", "between", "from", "through"]},
+    {"id": "RECORD-R5", "section": "Methods", "label": "Codes to identify exposure/outcome/covariates", "required": true, "anchors": ["icd", "atc", "cpt", "code", "algorithm", "phenotype"]},
+    {"id": "RECORD-R6", "section": "Methods", "label": "Validation of codes/definitions", "required": true, "anchors": ["validat", "positive predictive value", "sensitivity of the", "chart review"]},
+    {"id": "RECORD-R8", "section": "Results", "label": "Sensitivity analysis for code definitions", "required": true, "anchors": ["alternative definition", "sensitivity", "code definition"]}
+  ]
+}

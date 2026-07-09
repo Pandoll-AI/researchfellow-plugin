@@ -192,6 +192,45 @@ Scripts always run as `python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scrip
 
 ---
 
+## Analysis & reporting (local, free)
+
+Method choice is not "always logistic/Cox". **Before proposing any Step 5/6 (protocol/
+SAP) or Step 9/10 analysis, read `references/methodology.md`** — it selects the method
+for the estimand (confounding control: multivariable/PS/IPTW/g-comp; competing risks;
+time-varying; MICE; E-value) and maps each choice to its STROBE/RECORD reporting items.
+Record the choice as `.research/analysis-plan.json` (the `analysis_plan` artifact).
+
+**The tool emits code, never numbers.** Turn the plan into an auditable, reproducible R
+script and preconditions with:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py \
+  --mode plan --project-dir .research --plan-path .research/analysis-plan.json [--data-path <extract>]
+```
+
+The emitted `analysis/scripts/analysis.R` is the authoritative analysis the user runs;
+`--mode real` gives a Python preview and (aggregate input) only a point estimate — never
+a fabricated CI/p.
+
+**At the manuscript step (11/12)**, screen reporting-guideline coverage:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/checklist_map.py \
+  --design cohort --manuscript .research/manuscript.md --output .research/checklist-report.json
+```
+
+Design → guideline: cohort/case-control/cross-sectional → STROBE (+ RECORD auto-pulled
+for EMR/claims/registry data); prediction → TRIPOD. Surface `required_missing` items to
+the user (soft `gate.results`/`gate.manuscript` conversation), do not silently pass them.
+For manuscript **voice**, match the target journal via
+`references/exemplars/observational-manuscript-style.md`.
+
+> Free local = method selection + coverage screen (integrity guardrail, principle 3).
+> The remote `methodology_advisor` / `checklist_map` (below) are the paid **deeper**
+> versions (assumption critique, venue-specific fit), never a gate on completing the work.
+
+---
+
 ## Guardrails — the 7 commandments (never break)
 
 Full rules in `references/guardrails.md`.

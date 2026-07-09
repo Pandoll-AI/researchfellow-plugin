@@ -1,0 +1,18 @@
+{
+  "guideline": "TRIPOD",
+  "version": "2015",
+  "applies_to": ["prediction"],
+  "note": "Prediction/prognostic model development or validation. Subset of key checkable items for coverage screening.",
+  "items": [
+    {"id": "TRIPOD-1", "section": "Title", "label": "Identify as development/validation of a prediction model", "required": true, "anchors": ["prediction model", "prognostic", "risk model", "development", "validation"]},
+    {"id": "TRIPOD-4a", "section": "Methods", "label": "Source of data / design", "required": true, "anchors": ["cohort", "source of data", "study design"]},
+    {"id": "TRIPOD-6a", "section": "Methods", "label": "Outcome definition", "required": true, "anchors": ["outcome", "defined"]},
+    {"id": "TRIPOD-7a", "section": "Methods", "label": "Predictors defined", "required": true, "anchors": ["predictor", "candidate variable", "feature"]},
+    {"id": "TRIPOD-8", "section": "Methods", "label": "Sample size", "required": false, "anchors": ["sample size", "events per variable", "epv"]},
+    {"id": "TRIPOD-9", "section": "Methods", "label": "Missing data handling", "required": true, "anchors": ["missing", "imputation"]},
+    {"id": "TRIPOD-10b", "section": "Methods", "label": "Predictor selection + model type", "required": true, "anchors": ["logistic", "cox", "lasso", "selection", "backward", "penaliz"]},
+    {"id": "TRIPOD-10d", "section": "Methods", "label": "Internal/external validation", "required": true, "anchors": ["validation", "bootstrap", "cross-validation", "external"]},
+    {"id": "TRIPOD-16", "section": "Results", "label": "Discrimination AND calibration", "required": true, "anchors": ["c-statistic", "auc", "discrimination", "calibration"]},
+    {"id": "TRIPOD-18", "section": "Discussion", "label": "Limitations", "required": true, "anchors": ["limitation", "overfitting", "optimism"]}
+  ]
+}

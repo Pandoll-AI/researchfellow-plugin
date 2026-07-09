@@ -1,5 +1,10 @@
 # Reporting Checklist Templates
 
+> **Machine source of truth:** `references/checklists/{strobe,record,tripod}.json`.
+> `scripts/checklist_map.py` and the tests consume those; this file is the
+> human-readable companion. A drift test asserts every JSON guideline is
+> documented here — add a guideline in both places.
+
 ## STROBE Checklist (Observational Studies)
 
 Use for cohort, case-control, and cross-sectional studies.
