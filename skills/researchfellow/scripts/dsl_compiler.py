@@ -74,19 +74,33 @@ def parse_cohort_dsl(cohort_dsl: str) -> CohortSpec:
 
 
 def validate_spec(spec: CohortSpec) -> List[str]:
-    """Validate spec and return list of warnings."""
+    """Structural validation + non-fatal design heuristics. Returns warnings.
+
+    Structural errors (missing INDEX/FOLLOWUP, bad clause format) are raised by
+    parse_cohort_dsl. This function adds only advisory heuristics.
+    """
     warnings = []
 
+    # NOTE: the two checks below are keyword HEURISTICS, not bias detection. They
+    # have false positives (a legitimate cohort may mention "survival") and false
+    # negatives (real immortal time can hide with no trigger word). So they emit
+    # non-fatal warnings for the user/LLM to judge — they do NOT block compilation
+    # and must never be described as "validation" of the design.
     for clause in [spec.index, spec.followup, *spec.include, *spec.exclude]:
         if TEMPORAL_VIOLATION_PATTERN.search(clause):
-            raise DSLValidationError("Detected invalid temporal order pattern")
+            warnings.append(
+                "HEURISTIC WARNING (may be false positive): a phrase suggesting "
+                "outcome-before-index appeared — confirm temporal ordering manually."
+            )
+            break
 
     if IMMORTAL_TIME_PATTERN.search(" ".join(spec.include)) and INDEX_EXPOSURE_PATTERN.search(spec.index):
-        raise DSLValidationError(
-            "Potential immortal time bias: survival/event-free condition in INCLUDE with exposure-based index"
+        warnings.append(
+            "HEURISTIC WARNING (may be false positive): survival/event-free wording in "
+            "INCLUDE with an exposure-based INDEX can signal immortal time bias — verify "
+            "time-zero alignment (see methodology.md §4). Not a definitive finding."
         )
 
-    # Additional warnings (non-fatal)
     if not spec.include:
         warnings.append("No INCLUDE clauses defined — entire population will be included")
 

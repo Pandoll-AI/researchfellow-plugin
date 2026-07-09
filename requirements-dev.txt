@@ -1,0 +1,12 @@
+# ResearchFellow plugin — development / test dependencies.
+#
+# The test suite (tests/) is stdlib-first: state-machine, PHI-screener, DSL and
+# drift tests need NOTHING but pytest. Tests that exercise real-data model
+# fitting are skipped automatically when the runtime deps in requirements.txt are
+# absent (see tests/conftest.py), so `pip install -r requirements-dev.txt` alone
+# is enough to run and pass the trust-foundation suite.
+#
+#   pip install -r requirements-dev.txt
+#   python -m pytest tests/ -v
+
+pytest>=8.0,<9.0

@@ -31,6 +31,18 @@ except ImportError:  # pragma: no cover - fallback to legacy gates.json path
     detect_schema = None
 
 
+class MissingDependency(Exception):
+    """Raised when a REAL-mode model fit needs a stats package that is absent.
+
+    In real mode this is fatal (the runner exits 1). We never downgrade a real
+    analysis to a partial result — see requirements.txt policy note.
+    """
+
+    def __init__(self, dep: str) -> None:
+        self.dep = dep
+        super().__init__(dep)
+
+
 def _safe_div(numerator: float, denominator: float) -> Optional[float]:
     if denominator == 0:
         return None
@@ -65,49 +77,80 @@ def compute_effects(row_counts: Dict[str, Any]) -> Dict[str, Optional[float]]:
     }
 
 
-def fit_glm_binomial(row_counts: Dict[str, Any]) -> Dict[str, Any]:
-    try:
-        import pandas as pd
-        import statsmodels.api as sm
-    except ImportError:
-        return {"status": "skipped", "reason": "statsmodels_or_pandas_not_installed"}
+def effect_from_counts(row_counts: Dict[str, Any]) -> Dict[str, Any]:
+    """Aggregate 2x2 effect estimate — the HONEST result for aggregate input.
 
+    A 2x2 table gives a point OR/RR and NOTHING more. A logistic/GLM fit on two
+    aggregated rows is a saturated model whose CI/p-value are artefacts, not
+    inference. So we deliberately return `status: aggregate_only` and no CI/p:
+    individual-level data (and the emitted analysis script) are required for a
+    real confidence interval. This is the fix for the "false precision" finding.
+    """
     n_exposed = int(row_counts.get("exposed", 0) or 0)
     n_unexposed = int(row_counts.get("unexposed", 0) or 0)
-    ev_exposed = int(row_counts.get("events_exposed", 0) or 0)
-    ev_unexposed = int(row_counts.get("events_unexposed", 0) or 0)
-
     if n_exposed <= 0 or n_unexposed <= 0:
         return {"status": "skipped", "reason": "insufficient_group_counts"}
 
-    data = pd.DataFrame({
-        "event_rate": [ev_exposed / n_exposed, ev_unexposed / n_unexposed],
-        "exposed": [1, 0],
-        "n": [n_exposed, n_unexposed],
-    })
+    effects = compute_effects(row_counts)
+    return {
+        "status": "aggregate_only",
+        "method": "2x2_effect_estimate",
+        "odds_ratio": effects["odds_ratio"],
+        "risk_ratio": effects["risk_ratio"],
+        "ci_p_available": False,
+        "note": (
+            "OR/RR are point estimates from a 2x2 table. Confidence intervals and "
+            "p-values require individual-level data — run the emitted analysis "
+            "script on your records, do not report CI/p from aggregate counts."
+        ),
+    }
 
-    x = sm.add_constant(data[["exposed"]], has_constant="add")
-    model = sm.GLM(data["event_rate"], x, family=sm.families.Binomial(), freq_weights=data["n"])
+
+def fit_glm_individual(
+    df: Any,
+    outcome_col: str = "event",
+    exposure_col: str = "exposed",
+    covariates: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Real per-record logistic regression (REAL mode). Raises MissingDependency
+    when statsmodels/pandas are absent — real analysis must not silently skip."""
+    try:
+        import numpy as np  # noqa: F401  (statsmodels needs it)
+        import statsmodels.api as sm
+    except ImportError as exc:
+        raise MissingDependency("statsmodels") from exc
+
+    cols = [exposure_col] + list(covariates or [])
+    missing_cols = [c for c in cols + [outcome_col] if c not in df.columns]
+    if missing_cols:
+        return {"status": "failed", "reason": f"missing_columns:{missing_cols}"}
+
+    # Explicit design matrix (no formula strings — avoids column-name injection).
+    x = sm.add_constant(df[cols].astype(float), has_constant="add")
+    y = df[outcome_col].astype(float)
 
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            fit = model.fit()
-    except Exception as exc:
-        return {"status": "failed", "reason": str(exc)}
+            fit = sm.Logit(y, x).fit(disp=0)
+    except Exception as exc:  # PerfectSeparation, singular matrix, non-convergence
+        return {"status": "failed", "reason": type(exc).__name__}
 
-    beta = float(fit.params.get("exposed", 0.0))
-    conf_int = fit.conf_int().loc["exposed"].tolist()
-    if not (math.isfinite(float(conf_int[0])) and math.isfinite(float(conf_int[1]))):
+    beta = float(fit.params.get(exposure_col, float("nan")))
+    conf_int = fit.conf_int().loc[exposure_col].tolist()
+    lo, hi = float(conf_int[0]), float(conf_int[1])
+    if not (math.isfinite(beta) and math.isfinite(lo) and math.isfinite(hi)):
         return {"status": "failed", "reason": "unstable_estimate_perfect_separation"}
 
     return {
         "status": "ok",
-        "method": "GLM-Binomial",
+        "method": "Logistic (individual-level)",
+        "n": int(df.shape[0]),
+        "adjusted_for": list(covariates or []),
         "coef": beta,
         "odds_ratio": math.exp(beta),
-        "or_ci95": [math.exp(float(conf_int[0])), math.exp(float(conf_int[1]))],
-        "p_value": float(fit.pvalues.get("exposed", 1.0)),
+        "or_ci95": [math.exp(lo), math.exp(hi)],
+        "p_value": float(fit.pvalues.get(exposure_col, 1.0)),
     }
 
 
@@ -121,8 +164,8 @@ def fit_cox(survival_records: List[Dict], time_varying_records: Optional[List[Di
     try:
         import pandas as pd
         from lifelines import CoxPHFitter
-    except ImportError:
-        return {"status": "skipped", "reason": "lifelines_or_pandas_not_installed"}
+    except ImportError as exc:  # real-mode caller: fatal, never a silent skip
+        raise MissingDependency("lifelines") from exc
 
     df = pd.DataFrame(survival_records)
     required = {"time", "event", "exposed"}
@@ -153,8 +196,8 @@ def _fit_cox_time_varying(records: List[Dict]) -> Dict[str, Any]:
     try:
         import pandas as pd
         from lifelines import CoxTimeVaryingFitter
-    except ImportError:
-        return {"status": "skipped", "reason": "lifelines_or_pandas_not_installed"}
+    except ImportError as exc:  # real-mode caller: fatal, never a silent skip
+        raise MissingDependency("lifelines") from exc
 
     df = pd.DataFrame(records)
     required = {"id", "start", "stop", "event", "exposed"}
@@ -215,9 +258,260 @@ def run_synthetic(project_dir: str, sap_version: str) -> dict:
         "table1": counts,
         "model_summary": compute_effects(counts),
         "model_fits": {
-            "glm_binomial": fit_glm_binomial(counts),
+            # Synthetic data is aggregate mock — never dress it as inference.
+            "glm_binomial": effect_from_counts(counts),
             "cox": {"status": "skipped", "reason": "planning_mode_no_real_survival_data"},
         },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Reproducible-script emission (`plan` mode). The tool does NOT compute numbers
+# here — it emits an auditable R script the user runs in their own stats env, and
+# checks preconditions. This is how methodology breadth (IPTW, Fine-Gray, MICE,
+# ...) is covered without re-implementing every method in Python.
+# ---------------------------------------------------------------------------
+
+# method key -> (R packages, model snippet builder). Snippets are templates keyed
+# on the analysis_plan artifact (see references/methodology.md §8).
+_R_PACKAGES = {
+    "logistic": ["sandwich", "lmtest"],
+    "log_binomial": ["sandwich", "lmtest"],
+    "poisson_robust": ["sandwich", "lmtest"],
+    "cox_ph": ["survival"],
+    "fine_gray": ["cmprsk", "survival"],
+    "conditional_logistic": ["survival"],
+}
+
+_CONFOUNDING_PACKAGES = {
+    "iptw": ["WeightIt", "cobalt", "survey"],
+    "ps_match": ["MatchIt", "cobalt"],
+    "gcomp": ["marginaleffects"],
+    "doubly_robust": ["WeightIt", "marginaleffects"],
+}
+
+
+def _r_covariate_formula(covariates: List[str]) -> str:
+    return " + ".join(covariates) if covariates else "1"
+
+
+def emit_analysis_script(method_spec: Dict[str, Any]) -> str:
+    """Build a reproducible R analysis script from an analysis_plan artifact.
+
+    The script is the authoritative analysis (medical-stats convention = R). It is
+    emitted, never executed by this tool. Unknown method keys degrade to a clearly
+    flagged TODO block rather than a silent omission.
+    """
+    est = method_spec.get("estimand", {}) or {}
+    method = method_spec.get("primary_method", "logistic")
+    strategy = method_spec.get("confounding_strategy", "multivariable")
+    covariates = list(method_spec.get("covariates", []) or [])
+    exposure = est.get("exposure_var", "exposed")
+    outcome = est.get("outcome_var", "event")
+    measure = est.get("measure", "OR")
+
+    pkgs = sorted(set(_R_PACKAGES.get(method, []) + _CONFOUNDING_PACKAGES.get(strategy, [])))
+    cov_formula = _r_covariate_formula(covariates)
+
+    lines: List[str] = []
+    lines.append("# ============================================================")
+    lines.append("# ResearchFellow — reproducible analysis script (AUTHORITATIVE).")
+    lines.append("# Generated from analysis-plan.json. Run in your own R env on")
+    lines.append("# individual-level data. This tool does NOT fabricate results.")
+    lines.append("# ============================================================")
+    lines.append(f"# Estimand : {est.get('population','?')} | exposure={exposure} "
+                 f"vs {est.get('comparator','?')} | outcome={outcome} | measure={measure}")
+    lines.append(f"# Method   : primary={method}, confounding={strategy}")
+    lines.append(f"# Adjusted : {', '.join(covariates) if covariates else '(none)'}")
+    lines.append("")
+    if pkgs:
+        lines.append(f"# install.packages(c({', '.join(repr(p) for p in pkgs)}))")
+        for p in pkgs:
+            lines.append(f"library({p})")
+    lines.append("")
+    lines.append('df <- read.csv("data.csv")  # <- your individual-level extract')
+    lines.append("")
+
+    # --- confounding-control setup ---
+    if strategy == "ps_match":
+        lines.append("# Propensity-score matching (report SMD balance, cobalt::love.plot)")
+        lines.append(f"m <- matchit({exposure} ~ {cov_formula}, data = df, method = \"nearest\")")
+        lines.append("summary(m); love.plot(m)")
+        lines.append("adf <- match.data(m)")
+        data_obj, weights = "adf", None
+    elif strategy in ("iptw", "doubly_robust"):
+        lines.append("# IPTW: stabilized weights; inspect extremes before fitting")
+        lines.append(f"w <- weightit({exposure} ~ {cov_formula}, data = df, "
+                     "method = \"ps\", estimand = \"ATE\", stabilize = TRUE)")
+        lines.append("bal.tab(w, un = TRUE)  # standardized mean differences (< 0.1)")
+        data_obj, weights = "df", "w$weights"
+    else:
+        data_obj, weights = "df", None
+
+    lines.append("")
+    lines.append("# --- primary model ---")
+    rhs = f"{exposure} + {cov_formula}" if strategy in ("multivariable", "none") and covariates else exposure
+    warg = f", weights = {weights}" if weights else ""
+    if method == "cox_ph":
+        time = est.get("time_var", "time")
+        lines.append(f"fit <- coxph(Surv({time}, {outcome}) ~ {rhs}, data = {data_obj}{warg})")
+        lines.append("cox.zph(fit)  # proportional-hazards assumption check")
+        lines.append("summary(fit)  # HR + 95% CI")
+    elif method == "fine_gray":
+        time = est.get("time_var", "time")
+        lines.append("# Competing risks: subdistribution hazard (event coded 1=event, 2=competing)")
+        lines.append(f"fg <- crr({data_obj}${time}, {data_obj}${outcome}, "
+                     f"cov1 = model.matrix(~ {rhs}, {data_obj})[,-1])")
+        lines.append("summary(fg)")
+    elif method == "log_binomial":
+        lines.append(f"fit <- glm({outcome} ~ {rhs}, data = {data_obj}, "
+                     f"family = binomial(link = \"log\"){warg})")
+        lines.append("coeftest(fit, vcov = sandwich)  # robust SE -> risk ratio")
+    elif method == "poisson_robust":
+        lines.append(f"fit <- glm({outcome} ~ {rhs}, data = {data_obj}, "
+                     f"family = poisson(){warg})")
+        lines.append("coeftest(fit, vcov = sandwich)  # robust SE -> rate/risk ratio")
+    elif method == "conditional_logistic":
+        strata = est.get("strata_var", "match_id")
+        lines.append(f"fit <- clogit({outcome} ~ {exposure} + {cov_formula} + strata({strata}), data = {data_obj})")
+        lines.append("summary(fit)")
+    elif method == "logistic":
+        lines.append(f"fit <- glm({outcome} ~ {rhs}, data = {data_obj}, "
+                     f"family = binomial(){warg})")
+        lines.append("if (exists(\"sandwich\")) coeftest(fit, vcov = sandwich) else summary(fit)")
+        lines.append("# NOTE: OR approximates RR only for a RARE outcome (methodology.md §1)")
+    else:
+        lines.append(f"# TODO(unknown primary_method={method!r}): no template — specify the model.")
+
+    lines.append("")
+    lines.append("# --- sensitivity analyses ---")
+    for s in method_spec.get("sensitivity", []) or []:
+        if s == "e_value":
+            lines.append("# E-value: install.packages('EValue'); EValue::evalues.OR(<est>, <lo>, <hi>)")
+        else:
+            lines.append(f"# sensitivity: {s} (see methodology.md §6)")
+    lines.append("")
+    lines.append("# --- report both relative and absolute effects (STROBE 16a/16c) ---")
+    return "\n".join(lines) + "\n"
+
+
+def check_preconditions(counts: Dict[str, Any], method_spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Thin, deterministic precondition warnings (methodology.md §5). Warns only;
+    never fits a model."""
+    warnings_out: List[Dict[str, Any]] = []
+    n_cov = len(method_spec.get("covariates", []) or [])
+    events = int(counts.get("events_exposed", 0) or 0) + int(counts.get("events_unexposed", 0) or 0)
+    n_exposed = int(counts.get("exposed", 0) or 0)
+    n_unexposed = int(counts.get("unexposed", 0) or 0)
+
+    if n_cov and events / max(n_cov, 1) < 10:
+        warnings_out.append({
+            "check": "epv",
+            "severity": "warning",
+            "detail": f"~{events} events for {n_cov} covariates (EPV {events / n_cov:.1f} < 10). "
+                      "Prefer PS-on-exposure, penalization, or fewer covariates.",
+        })
+    if n_exposed == 0 or n_unexposed == 0:
+        warnings_out.append({
+            "check": "positivity",
+            "severity": "critical",
+            "detail": "one exposure group is empty — no overlap; effect not estimable.",
+        })
+    if method_spec.get("primary_method") == "cox_ph":
+        warnings_out.append({
+            "check": "ph_assumption",
+            "severity": "info",
+            "detail": "Cox chosen — verify proportional hazards (cox.zph) in the emitted script.",
+        })
+    if method_spec.get("competing_risks", {}).get("present") and \
+            method_spec.get("competing_risks", {}).get("approach") not in ("fine_gray", "cause_specific"):
+        warnings_out.append({
+            "check": "competing_risks",
+            "severity": "warning",
+            "detail": "competing risks present but approach is not fine_gray/cause_specific (methodology.md §4).",
+        })
+    return warnings_out
+
+
+def run_plan(project_dir: str, plan_path: str, data_path: Optional[str] = None) -> dict:
+    """Emit the reproducible R script + precondition report from an analysis plan.
+    Planning activity — no gates, stdlib-only (data preconditions optional)."""
+    with open(plan_path) as f:
+        method_spec = json.load(f)
+
+    script = emit_analysis_script(method_spec)
+    scripts_dir = os.path.join(project_dir, "analysis", "scripts")
+    os.makedirs(scripts_dir, exist_ok=True)
+    script_path = os.path.join(scripts_dir, "analysis.R")
+    with open(script_path, "w") as f:
+        f.write(script)
+
+    preconditions: List[Dict[str, Any]] = []
+    counts: Optional[Dict[str, Any]] = None
+    if data_path and os.path.exists(data_path):
+        try:
+            if data_path.endswith(".json"):
+                with open(data_path) as f:
+                    data = json.load(f)
+                counts = data.get("row_counts", data)
+            else:
+                counts = _counts_from_df(_read_csv_df(data_path))
+        except MissingDependency:
+            counts = None  # preconditions are best-effort in planning
+        if counts:
+            preconditions = check_preconditions(counts, method_spec)
+
+    return {
+        "mode": "plan",
+        "script_path": script_path,
+        "authoritative": "R script (run in your own environment)",
+        "method": {
+            "primary_method": method_spec.get("primary_method"),
+            "confounding_strategy": method_spec.get("confounding_strategy"),
+            "covariates": method_spec.get("covariates", []),
+        },
+        "preconditions": preconditions,
+        "generated_at": datetime.now().isoformat(),
+    }
+
+
+def _require_pandas():
+    try:
+        import pandas as pd
+    except ImportError as exc:
+        raise MissingDependency("pandas") from exc
+    return pd
+
+
+def _read_csv_df(path: str):
+    return _require_pandas().read_csv(path)
+
+
+def _load_records_df(records: List[Dict]):
+    return _require_pandas().DataFrame(records)
+
+
+def _counts_from_df(df) -> Dict[str, int]:
+    """Aggregate a 2x2 count table from an individual-level frame.
+
+    Replaces the original fragile `df[df.get("exposed", False) == 1]` indexing
+    with explicit boolean masks that don't misbehave on missing columns.
+    """
+    if "exposed" not in df.columns:
+        return {"total": int(len(df)), "exposed": 0, "unexposed": 0,
+                "events_exposed": 0, "events_unexposed": 0}
+    exposed = df["exposed"].astype(bool)
+    events_exposed = events_unexposed = 0
+    if "event" in df.columns:
+        ev = df["event"].astype(bool)
+        events_exposed = int((exposed & ev).sum())
+        events_unexposed = int((~exposed & ev).sum())
+    return {
+        "total": int(len(df)),
+        "exposed": int(exposed.sum()),
+        "unexposed": int((~exposed).sum()),
+        "events_exposed": events_exposed,
+        "events_unexposed": events_unexposed,
     }
 
 
@@ -277,30 +571,46 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
             print("ERROR: QC has critical flags. Resolve before running real analysis.", file=sys.stderr)
             sys.exit(1)
 
-    # Load data counts (expects JSON with row_counts)
-    if data_path.endswith(".json"):
-        with open(data_path) as f:
-            data = json.load(f)
-        counts = data.get("row_counts", data)
-        survival_records = data.get("survival_records", [])
-        time_varying_records = data.get("time_varying_records", [])
-    else:
-        # CSV support: compute counts from data
-        try:
-            import pandas as pd
-            df = pd.read_csv(data_path)
-            counts = {
-                "total": len(df),
-                "exposed": int(df["exposed"].sum()) if "exposed" in df.columns else 0,
-                "unexposed": int((~df["exposed"].astype(bool)).sum()) if "exposed" in df.columns else 0,
-                "events_exposed": int(df[df.get("exposed", False) == 1]["event"].sum()) if {"exposed", "event"}.issubset(df.columns) else 0,
-                "events_unexposed": int(df[df.get("exposed", False) == 0]["event"].sum()) if {"exposed", "event"}.issubset(df.columns) else 0,
-            }
-            survival_records = df.to_dict("records") if {"time", "event", "exposed"}.issubset(df.columns) else []
-            time_varying_records = []
-        except ImportError:
-            print("ERROR: pandas required for CSV data", file=sys.stderr)
-            sys.exit(1)
+    # Load data + fit models. individual_df is set only when we have
+    # individual-level records (CSV, or JSON with a `records` list); otherwise the
+    # input is aggregate. MissingDependency anywhere below is FATAL in real mode —
+    # a real analysis must never be reported as a partial/skipped result.
+    individual_df = None
+    survival_records: List[Dict] = []
+    time_varying_records: List[Dict] = []
+
+    try:
+        if data_path.endswith(".json"):
+            with open(data_path) as f:
+                data = json.load(f)
+            survival_records = data.get("survival_records", [])
+            time_varying_records = data.get("time_varying_records", [])
+            records = data.get("records")
+            if records:
+                individual_df = _load_records_df(records)
+                counts = _counts_from_df(individual_df)
+            else:
+                counts = data.get("row_counts", data)
+        else:
+            # CSV is individual-level. pandas is a hard requirement in real mode.
+            individual_df = _read_csv_df(data_path)
+            counts = _counts_from_df(individual_df)
+            if {"time", "event", "exposed"}.issubset(individual_df.columns):
+                survival_records = individual_df.to_dict("records")
+
+        if individual_df is not None and {"event", "exposed"}.issubset(individual_df.columns):
+            glm_fit = fit_glm_individual(individual_df)
+        else:
+            glm_fit = effect_from_counts(counts)
+        cox_fit = fit_cox(survival_records, time_varying_records)
+    except MissingDependency as exc:
+        print(
+            f"ERROR: real-data analysis requires '{exc.dep}' but it is not installed. "
+            "Install runtime deps (pip install -r requirements.txt) and re-run — "
+            "a real analysis must not be reported as a partial/skipped result.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     return {
         "source": "real",
@@ -309,23 +619,41 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
         "table1": counts,
         "model_summary": compute_effects(counts),
         "model_fits": {
-            "glm_binomial": fit_glm_binomial(counts),
-            "cox": fit_cox(survival_records, time_varying_records),
+            "glm_binomial": glm_fit,
+            "cox": cox_fit,
         },
     }
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run statistical analysis")
-    parser.add_argument("--mode", required=True, choices=["synthetic", "real"])
+    parser.add_argument("--mode", required=True, choices=["synthetic", "real", "plan"])
     parser.add_argument("--project-dir", required=True, help="Path to .research/ directory")
     parser.add_argument("--sap-version", default="v0.1")
     parser.add_argument("--data-path", help="Path to real data (required for real mode)")
+    parser.add_argument("--plan-path", help="Path to analysis-plan.json (required for plan mode)")
     args = parser.parse_args()
 
     if args.mode == "real" and not args.data_path:
         print("ERROR: --data-path required for real mode", file=sys.stderr)
         sys.exit(1)
+
+    # plan mode: emit the reproducible R script + precondition report. No gates
+    # (planning), stdlib-only. Data is optional (used only for preconditions).
+    if args.mode == "plan":
+        if not args.plan_path:
+            print("ERROR: --plan-path required for plan mode", file=sys.stderr)
+            sys.exit(1)
+        report = run_plan(args.project_dir, args.plan_path, args.data_path)
+        report_path = os.path.join(args.project_dir, "analysis", "plan-report.json")
+        os.makedirs(os.path.dirname(report_path), exist_ok=True)
+        with open(report_path, "w") as f:
+            json.dump(report, f, indent=2, ensure_ascii=False)
+        print(f"Analysis plan emitted.\n  Script (authoritative, run in R): {report['script_path']}")
+        print(f"  Plan report: {report_path}")
+        for w in report["preconditions"]:
+            print(f"  [{w['severity'].upper()}] {w['check']}: {w['detail']}")
+        sys.exit(0)
 
     output_dir = os.path.join(args.project_dir, "analysis", args.mode)
     os.makedirs(output_dir, exist_ok=True)

@@ -1,0 +1,17 @@
+# ResearchFellow plugin — runtime OPTIONAL dependencies.
+#
+# Policy (see docs/p0-implementation-design and SKILL.md):
+#   * Planning / synthetic mode is stdlib-only. None of the packages below are
+#     required to run PICO structuring, state judging, PHI screening, material
+#     scanning, DSL compilation, or synthetic dry-runs.
+#   * REAL-data analysis (analysis_runner.py --mode real) REQUIRES these. When
+#     they are absent the runner HARD-FAILS (exit 1) instead of silently emitting
+#     a degraded result — a real analysis must never look "done" on a machine
+#     that cannot fit the model.
+#
+# Install only when you are ready to run real-data analysis:
+#   pip install -r requirements.txt
+
+pandas>=2.0,<3.0
+statsmodels>=0.14,<0.15
+lifelines>=0.29,<0.31
