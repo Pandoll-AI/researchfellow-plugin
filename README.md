@@ -87,6 +87,30 @@ npm install -g @anthropic-ai/claude-code
 순서대로 갈 필요 없습니다. 이미 가진 것(프로토콜, 데이터, 초고…)을 주면
 해당 단계부터 시작합니다.
 
+## 결과물은 이렇게 쌓입니다
+
+연구를 진행하면 각 단계의 산출물이 **폴더별로 차곡차곡** 남습니다. 아이디어(PICO)에서
+출발해 **실제 PubMed 문헌**, 근거표·변수 정의, 프로토콜·통계분석계획, 데이터 QC와
+분석, 그리고 **원고·제출 패키지**까지 — 전 과정이 로컬에 *감사 가능한* 형태로 축적됩니다.
+나중에 "이 결론이 어디서 나왔지?"를 폴더만 열어보면 되돌아볼 수 있습니다.
+
+<table>
+<tr>
+<td width="38%" valign="top" align="center">
+<img src="assets/save-folder-structure.jpeg" alt="단계별 산출물 폴더 구조" width="100%">
+<br><b>① 단계별 폴더</b><br><sub>01-PICO부터 13-REVISION까지, 각 단계가<br>무엇을 만들었는지 한눈에 추적</sub>
+</td>
+<td width="62%" valign="top" align="center">
+<img src="assets/sample-manuscript.jpeg" alt="자동 생성된 원고 예시" width="100%">
+<br><b>② 완성되는 원고</b><br><sub>실제 PubMed 인용 + 분석 결과로 채워지고<br>보고지침(STROBE·RECORD)에 맞춘 투고용 초안</sub>
+</td>
+</tr>
+</table>
+
+> 위 예시는 "지역사회획득 폐렴에서 병용 vs 단독 항생제와 30일 사망" 연구를 리허설한
+> 것입니다. **문헌은 실제 PubMed 검색 결과**이고, 코호트·수치는 하네스 검증용 **합성(모의)
+> 데이터**입니다 — 실제 연구에서는 이 자리에 여러분의 데이터가 들어갑니다.
+
 ## 안심하고 쓰셔도 되는 이유
 
 | | |
