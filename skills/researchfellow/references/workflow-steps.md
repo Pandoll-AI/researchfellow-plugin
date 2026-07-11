@@ -252,6 +252,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py gate-c
 
 **Process:**
 1. Generate from `templates/manuscript-template.md`; Methods auto-matched to the protocol.
+   **Author natively in English** — do not draft in another language and translate (calqued
+   syntax reads awkwardly). Working notes may stay in the team's language; the manuscript is English.
 2. **Results reference only real analysis outputs.** Discussion includes the required
    bias/limitations paragraphs. If any artifact is `imported`/`draft`, surface its
    provenance in **Limitations** (FR-G5).

@@ -2,6 +2,9 @@
      Default = RETROSPECTIVE OBSERVATIONAL (cohort/case-control/cross-sectional) →
      STROBE, plus RECORD when data are routinely collected (EMR/claims/registry).
      Prediction models → use a TRIPOD-shaped template instead.
+     Language: author the manuscript natively in English from the start — do NOT draft in
+     another language and translate, which leaves calqued syntax and reads awkwardly. Keep
+     working notes/registry in the team's language, but the manuscript itself is English.
      Voice: match a target journal's structured-abstract labels — see
      references/exemplars/observational-manuscript-style.md.
      Coverage is screened by scripts/checklist_map.py; the "REPORTING:" anchors
