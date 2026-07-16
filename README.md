@@ -110,7 +110,7 @@ npm install -g @anthropic-ai/claude-code
 <tr>
 <td width="38%" valign="top" align="center">
 <img src="assets/save-folder-structure.jpeg" alt="단계별 산출물 폴더 구조" width="100%">
-<br><b>① 단계별 폴더</b><br><sub>01-PICO부터 13-REVISION까지, 각 단계가<br>무엇을 만들었는지 한눈에 추적</sub>
+<br><b>① 산출물이 쌓이는 .research/ 폴더</b><br><sub>PICO·프로토콜·SAP·QC·분석·원고까지, 각 단계의<br>산출물과 결정 기록(audit)이 한 폴더에 축적</sub>
 </td>
 <td width="62%" valign="top" align="center">
 <img src="assets/sample-manuscript.jpeg" alt="자동 생성된 원고 예시" width="100%">

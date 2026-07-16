@@ -172,7 +172,9 @@ Steps 1–8 = Planning Mode (synthetic/mock, "NOT REAL DATA"). Steps 9–13 = Re
 After completing a step: **요약** (뭘 만들었는지, 파일명 포함) → **다음 안내** (다음 단계가
 뭐고 왜 필요한지 한 문장) → **확인** (AskUserQuestion으로 진행 여부). And **update
 `next_action`** at every save point (step complete, gate handled) — this is the 4th move,
-silent.
+silent. Milestone steps (1 · 8 · 10 · 12) get ONE celebratory line in the 요약, anchored
+in time via audit.jsonl ("아이디어에서 {N}일 만에 Planning Mode 완주!") — never more than
+a line, never a badge ceremony.
 
 ```
 Question: "Step {N}이 완료되었습니다. 다음으로 넘어갈까요?"

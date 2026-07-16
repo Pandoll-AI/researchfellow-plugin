@@ -147,6 +147,22 @@ Render from `state.json`. If `next_action` is present, use its `label`/`step`. I
 `state_tool can-enter --step N` in ascending order and use the first that returns exit 0
 (or the lowest exit-2 step as the blocked target), labeled from the fixed table below.
 
+### Participation moves (resume is the retention moment — use all four)
+
+1. **Recap** — read the last 3–5 lines of `audit.jsonl`: "지난 세션(N일 전)에
+   {마지막으로 한 일}까지 하셨어요." One sentence, warm, no jargon.
+2. **오늘의 15분** — frame `next_action` as a micro task with the rough-duration
+   table below: "오늘은 {label}만 {~분}에 끝내볼까요?" Never guilt-trip about the gap.
+3. **Milestone** — if the resume lands right after Step 1 / 8 / 10 / 12 completion,
+   celebrate one line with a time-anchored recap ("3주 전 아이디어가 오늘 실분석까지 왔어요").
+4. **모의 완주 제안** — if `rehearsal.active` is false AND no real data has appeared
+   yet, offer once per session: "실제 데이터가 아직이라면, 가짜 데이터로 전 과정을 미리
+   체험해볼 수도 있어요." (→ `references/synthetic-data.md`, 동의 강제)
+
+Rough-duration table (for the micro-task frame only — never a promise):
+Step 1 ~15분 · 2 ~20분 · 3 ~20분 · 4 ~15분 · 5 ~30분 · 6 ~30분 · 7 ~15분 ·
+8 ~10분 · 9 데이터 준비에 따라 다름 · 10 ~20분 · 11 ~40분 · 12 ~20분 · 13 라운드당 ~30분.
+
 **Verb-form label table (fixed, 13 entries):**
 
 | Step | 라벨 |
