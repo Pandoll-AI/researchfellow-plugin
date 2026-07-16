@@ -94,6 +94,13 @@ audit event (FR-E7). Then run the chosen entry path.
 **→ Before routing any entry point, read `references/entry-points.md` in full.** It holds
 the card copy, the S1 interview banks, and the S2–S5 procedures.
 
+**Desk (interactive HTML)** — the S1 interview and the S0 resume view prefer a local
+HTML page over pure chat: probe once per session with
+`python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/desk_server.py --probe-headless`,
+then follow `references/desk-interface.md` (payload schema, background launch, exit-code
+table). The Desk is an enhancement — on headless, timeout, or the user's "그냥 채팅으로
+할게요", the chat procedures apply unchanged.
+
 ### S1 clarity rubric (never expose the labels)
 
 Judge the free-text idea by **how many of P·E·O are identifiable**, and store the verdict

@@ -44,6 +44,13 @@ Take the free text and judge clarity by **how many of P·E·O are identifiable**
 (Population, Exposure, Outcome). Record the verdict in `entry_point.s1_clarity` as
 `clear` / `rough` / `vague`. Then adapt depth:
 
+> **Desk first**: when the environment allows (probe per `desk-interface.md`),
+> run this interview as the local HTML form — clarity judgement and the banks
+> below stay YOUR logic; you pre-fill what you extracted into `pico_prefill`
+> (and, for vague, offer `candidates` chips) so the labels are never exposed.
+> The form replaces the restate-and-confirm step. On headless/timeout/"그냥
+> 채팅으로", run the chat procedure below unchanged.
+
 ### clear (P·E·O all 3 identified)
 
 1. Structure into PICO (`templates/pico-template.json` schema).
@@ -126,6 +133,14 @@ Almost no dedicated logic — S3 rides the common Layer 2 pipeline.
 ---
 
 ## S0 — Resume view (FR-E6)
+
+> **Desk first**: when the environment allows, render the resume view as the
+> 13-step dashboard (`desk-interface.md`, view `dashboard`) — build `steps`/
+> `blockers` from a fresh `state_tool` run, include the compliance self-check
+> widget and (once per session) the recap/micro-task/milestone copy. The
+> dashboard's `action` answer maps 1:1 to the 3-choice menu below. Append a
+> `SESSION_RESUMED` audit event + `session_resumed` telemetry either way.
+> Headless/timeout → the text render below, unchanged.
 
 Render from `state.json`. If `next_action` is present, use its `label`/`step`. If absent
 (v1 file or never set), derive the first enterable step by trying

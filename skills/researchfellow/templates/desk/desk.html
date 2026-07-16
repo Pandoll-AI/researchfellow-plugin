@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResearchFellow Desk</title>
+<style>
+  /* Self-contained on purpose (no CDN — closed hospital networks). Swiss /
+     editorial, monochrome + deep teal, 1px hairlines — matches the site. */
+  :root {
+    --bg: #FAF9F6; --ink: #111418; --muted: #5F6672; --line: #E3DFD7;
+    --accent: #0F766E; --accent-soft: #EAF2F1; --warn: #B45309; --invalid: #B91C1C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
+                 system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.75; word-break: keep-all; font-size: 15.5px;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  .brand { font-weight: 700; letter-spacing: -0.01em; font-size: 14px; }
+  .brand::before { content: ""; display: inline-block; width: 10px; height: 10px;
+    background: var(--accent); margin-right: 8px; }
+  h1 { font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.02em; line-height: 1.25;
+    margin: 18px 0 6px; font-weight: 700; }
+  .sub { color: var(--muted); margin: 0 0 34px; }
+  .card { border: 1px solid var(--line); background: #fff; padding: 22px; margin: 0 0 18px; }
+  .label { display: block; font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+  input[type=text], textarea {
+    width: 100%; border: 1px solid var(--line); background: #fff; padding: 10px 12px;
+    font: inherit; color: var(--ink); border-radius: 0; }
+  input[type=text]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .prefilled { background: var(--accent-soft); }
+  .field { margin-bottom: 18px; }
+  .unknown { display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
+    color: var(--muted); margin-top: 6px; cursor: pointer; user-select: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
+  .chip { border: 1px solid var(--line); background: #fff; padding: 8px 14px;
+    cursor: pointer; font: inherit; font-size: 14px; }
+  .chip.active { border-color: var(--accent); background: var(--accent-soft); }
+  .btn { border: 1px solid var(--ink); background: var(--ink); color: #fff;
+    padding: 12px 22px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn.accent { background: var(--accent); border-color: var(--accent); }
+  .btn.ghost { background: transparent; color: var(--muted); border-color: var(--line); }
+  .actions { display: flex; gap: 12px; align-items: center; margin-top: 26px; flex-wrap: wrap; }
+  .banner { border-left: 3px solid var(--accent); background: var(--accent-soft);
+    padding: 12px 16px; margin: 0 0 18px; font-size: 14px; }
+  /* dashboard */
+  .stepper { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px; margin: 6px 0 4px; }
+  .step { border: 1px solid var(--line); background: #fff; padding: 10px 12px; font-size: 13px; }
+  .step .n { font-weight: 700; font-size: 12px; color: var(--muted); display: block; }
+  .step.completed { border-color: var(--accent); background: var(--accent-soft); }
+  .step.in_progress { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--accent); }
+  .step.imported { border-color: var(--accent); border-style: dashed; }
+  .step.invalidated { border-color: var(--invalid); color: var(--invalid);
+    background: repeating-linear-gradient(45deg, #fff, #fff 6px, #FDF2F2 6px, #FDF2F2 12px); }
+  .step.blocked { border-color: var(--warn); }
+  .step.loop { border-style: dotted; }
+  .badge { display: inline-block; font-size: 11px; padding: 1px 6px; border: 1px solid currentColor; margin-left: 4px; }
+  .gates { display: flex; flex-wrap: wrap; gap: 8px; }
+  .gate { font-size: 12.5px; border: 1px solid var(--line); padding: 4px 10px; border-radius: 999px; }
+  .gate.hard { border-radius: 0; font-weight: 600; }
+  .gate.approved { border-color: var(--accent); background: var(--accent-soft); }
+  .blockers li { color: var(--warn); }
+  .check-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0;
+    border-bottom: 1px solid var(--line); font-size: 14px; }
+  .done-screen { text-align: center; padding: 80px 0; }
+  .footnote { font-size: 12.5px; color: var(--muted); margin-top: 40px;
+    border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+</head>
+<body>
+<script type="application/json" id="rf-payload">__RF_PAYLOAD_JSON__</script>
+<main id="app"></main>
+<script>
+"use strict";
+const P = JSON.parse(document.getElementById("rf-payload").textContent);
+const TOKEN = new URLSearchParams(location.search).get("t") || "";
+const app = document.getElementById("app");
+
+function el(tag, attrs, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") node.className = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined) node.setAttribute(k, v);
+  }
+  for (const c of children) {
+    if (c === null || c === undefined) continue;
+    node.append(c.nodeType ? c : document.createTextNode(c));
+  }
+  return node;
+}
+
+async function submit(answers) {
+  const res = await fetch("/submit?t=" + encodeURIComponent(TOKEN), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(answers),
+  });
+  if (res.ok) {
+    app.replaceChildren(el("div", { class: "done-screen" },
+      el("div", { class: "brand" }, "ResearchFellow"),
+      el("h1", {}, "저장되었습니다"),
+      el("p", { class: "sub" }, "이 창을 닫고 Claude Code로 돌아가세요 — 대화가 이어집니다.")));
+  } else {
+    alert("저장에 실패했습니다 — 창을 닫고 채팅으로 계속해 주세요.");
+  }
+}
+
+function fallbackButton() {
+  return el("button", { class: "btn ghost", onclick: () => submit({ fallback_requested: true }) },
+    "그냥 채팅으로 할게요");
+}
+
+/* ---------------- S1 interview ---------------- */
+const PICO_FIELDS = [
+  ["population",  "누구를 (Population)",  "예: 중환자실에 입원한 패혈증 성인 환자"],
+  ["exposure",    "무엇의 효과를 (Exposure)", "예: 입원 전 스타틴 복용"],
+  ["comparator",  "무엇과 비교해 (Comparator, 선택)", "예: 스타틴 미복용"],
+  ["outcome",     "어떤 결과를 (Outcome)",  "예: 30일 사망률"],
+  ["timeframe",   "어느 기간에 (Timeframe, 선택)", "예: 2018–2024 입원"],
+  ["data_source", "데이터는 어디서 (Data source, 선택)", "예: 원내 EMR 추출, 레지스트리"],
+];
+
+function renderInterview() {
+  const pre = P.pico_prefill || {};
+  const inputs = {};
+
+  const header = el("div", {},
+    el("div", { class: "brand" }, "ResearchFellow Desk"),
+    el("h1", {}, "연구 아이디어를 함께 다듬어 볼까요"),
+    el("p", { class: "sub" },
+      "이해한 부분은 미리 채워 두었습니다 — 틀린 곳은 고치고, 빈 곳만 채워 주세요. 확실하지 않으면 “잘 모르겠어요”를 켜 두면 됩니다."));
+
+  const ideaCard = el("div", { class: "card" },
+    el("label", { class: "label", for: "idea_text" }, "연구 아이디어 (자유롭게)"),
+    el("textarea", { id: "idea_text", rows: "4" }, P.free_text_seed || ""));
+
+  let chipRow = null;
+  if ((P.candidates || []).length) {
+    chipRow = el("div", { class: "card" },
+      el("label", { class: "label" }, "이런 방향은 어떠세요? (클릭하면 아래가 채워집니다)"),
+      el("div", { class: "chips" }, ...P.candidates.map((c, i) =>
+        el("button", { class: "chip", type: "button", onclick: (e) => {
+          document.querySelectorAll(".chip").forEach(x => x.classList.remove("active"));
+          e.currentTarget.classList.add("active");
+          selectedCandidate = i;
+          for (const [key] of PICO_FIELDS) {
+            if (c.pico && c.pico[key]) {
+              inputs[key].input.value = c.pico[key];
+              inputs[key].input.classList.add("prefilled");
+            }
+          }
+        } }, c.label))));
+  }
+  let selectedCandidate = null;
+
+  const picoCard = el("div", { class: "card" },
+    el("label", { class: "label" }, "PICO 카드"),
+    ...PICO_FIELDS.map(([key, label, placeholder]) => {
+      const known = pre[key] && pre[key].value;
+      const input = el("input", {
+        type: "text", id: "f_" + key, placeholder,
+        value: known ? pre[key].value : "",
+        class: known ? "prefilled" : "",
+      });
+      const unknown = el("input", { type: "checkbox", id: "u_" + key });
+      inputs[key] = { input, unknown };
+      return el("div", { class: "field" },
+        el("label", { class: "label", for: "f_" + key }, label),
+        input,
+        known ? el("p", { class: "hint" }, "이렇게 이해했어요 — 아니라면 고쳐 주세요.") : null,
+        el("label", { class: "unknown" }, unknown, "잘 모르겠어요 (같이 정하면 됩니다)"));
+    }));
+
+  const actions = el("div", { class: "actions" },
+    el("button", { class: "btn accent", onclick: () => {
+      const pico = {};
+      for (const [key] of PICO_FIELDS) {
+        pico[key] = {
+          value: inputs[key].input.value.trim(),
+          confidence: inputs[key].unknown.checked ? "low" : "stated",
+        };
+      }
+      submit({ view: "s1_interview", idea_text: document.getElementById("idea_text").value,
+               pico, selected_candidate: selectedCandidate });
+    } }, "이대로 시작하기"),
+    fallbackButton());
+
+  app.replaceChildren(header, ideaCard, chipRow, picoCard, actions,
+    el("p", { class: "footnote" },
+      "이 화면은 내 컴퓨터(127.0.0.1)에서만 열립니다. 자유 서술 칸은 저장 전에 개인식별정보 마스킹을 거칩니다."));
+}
+
+/* ---------------- Dashboard ---------------- */
+const STATUS_LABEL = { pending: "대기", in_progress: "진행 중", completed: "완료",
+  imported: "가져옴", invalidated: "재작업 필요", skipped: "건너뜀", blocked: "잠김" };
+
+function renderDashboard() {
+  const header = el("div", {},
+    el("div", { class: "brand" }, "ResearchFellow Desk"),
+    el("h1", {}, P.project_name || "연구 프로젝트"),
+    el("p", { class: "sub" },
+      (P.entry_label ? P.entry_label + " · " : "") + "완료 " + (P.completed_count ?? "?") + "/12" +
+      (P.rehearsal && P.rehearsal.active ? " · 연습 모드 데이터 있음" : "")));
+
+  const banners = [];
+  if (P.milestone) banners.push(el("div", { class: "banner" }, "🎉 " + P.milestone));
+  if (P.recap) banners.push(el("div", { class: "banner" }, P.recap));
+
+  const stepper = el("div", { class: "card" },
+    el("label", { class: "label" }, "13단계 지도"),
+    el("div", { class: "stepper" }, ...(P.steps || []).map(s =>
+      el("div", { class: "step " + (s.status || "pending") + (s.n === 13 ? " loop" : ""),
+                  title: s.blocked_reason || "" },
+        el("span", { class: "n" }, "Step " + s.n),
+        s.name,
+        s.status === "imported" ? el("span", { class: "badge" }, "가져옴") : null,
+        s.n === 13 ? el("span", { class: "badge" }, "루프") : null))));
+
+  const next = el("div", { class: "card" },
+    el("label", { class: "label" }, "다음 할 일"),
+    el("p", {}, P.next_action && P.next_action.label
+      ? `${P.next_action.label} (Step ${P.next_action.step})`
+      : "다음 단계를 함께 정해요"),
+    P.micro_task ? el("p", { class: "hint" }, "⏱ " + P.micro_task) : null);
+
+  const blockers = (P.blockers || []).length
+    ? el("div", { class: "card" },
+        el("label", { class: "label" }, "막고 있는 것"),
+        el("ul", { class: "blockers" }, ...P.blockers.map(b => el("li", {}, b))))
+    : null;
+
+  const gates = el("div", { class: "card" },
+    el("label", { class: "label" }, "관문 (읽기 전용)"),
+    el("div", { class: "gates" }, ...(P.gates || []).map(g =>
+      el("span", { class: "gate " + g.type + " " + g.status },
+        (g.type === "hard" ? "🛡 " : "") + g.id.replace("gate.", "") + " · " + g.status))));
+
+  const compliance = P.compliance ? el("div", { class: "card" },
+    el("label", { class: "label" }, "제출 전 자기 점검 (연구자 본인이 확인하는 항목입니다)"),
+    ...(P.compliance.items || []).map(item => {
+      const cb = el("input", { type: "checkbox", id: "c_" + item.id });
+      cb.checked = !!item.checked;
+      return el("label", { class: "check-row", for: "c_" + item.id }, cb, item.label);
+    }),
+    el("p", { class: "hint" }, "ResearchFellow는 이 항목을 검증하거나 진행을 막지 않습니다 — 투고 시점에 다시 알려드릴게요.")) : null;
+
+  const actions = el("div", { class: "actions" },
+    el("button", { class: "btn accent", onclick: () => submitDash("continue") }, "이어서 진행"),
+    P.rehearsal && !P.rehearsal.active
+      ? el("button", { class: "btn ghost", onclick: () => submitDash("start_rehearsal") },
+          "데이터 없이 전체 과정 미리 체험")
+      : null,
+    el("button", { class: "btn ghost", onclick: () => submitDash("new_entry") }, "다른 작업"),
+    el("button", { class: "btn ghost", onclick: () => submitDash("new_project") }, "새 프로젝트"),
+    fallbackButton());
+
+  function submitDash(action) {
+    const checks = {};
+    for (const item of (P.compliance && P.compliance.items) || []) {
+      checks[item.id] = document.getElementById("c_" + item.id).checked;
+    }
+    submit({ view: "dashboard", action, compliance: checks });
+  }
+
+  app.replaceChildren(header, ...banners, stepper, next, blockers, gates, compliance, actions,
+    el("p", { class: "footnote" }, "이 화면은 내 컴퓨터(127.0.0.1)에서만 열립니다."));
+}
+
+if (P.view === "dashboard") renderDashboard();
+else renderInterview();
+</script>
+</body>
+</html>
