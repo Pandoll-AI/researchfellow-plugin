@@ -196,6 +196,12 @@ cohort flow diagram, and figure shells (forest plot, survival curve).
 `gate.protocol` must be approved** (deterministically checked by `can-enter --step 9`).
 
 **Process:**
+0. **No data yet? Offer the rehearsal path** (before any gate talk): "아직 실제
+   데이터가 없으시면, 가짜 데이터로 나머지 전 과정을 미리 체험해볼 수 있어요."
+   On interest, follow `references/synthetic-data.md` — forced consent, synth_builder,
+   `--mode rehearsal`, everything under `.research/rehearsal/` only. Rehearsal never
+   touches steps/gates/execution_mode and emits no telemetry step events. Do NOT
+   interrogate why the user has no data (IRB/data reality stay a self-checklist — D7).
 1. Explain the transition: "여기서부터 실제 데이터를 다룹니다. feasibility·protocol 게이트
    승인이 필요합니다."
 2. Define the cohort with the Cohort DSL (see `references/cohort-dsl.md`) and compile:

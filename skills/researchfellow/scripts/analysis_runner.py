@@ -515,7 +515,102 @@ def _counts_from_df(df) -> Dict[str, int]:
     }
 
 
+def _load_and_fit(data_path: str):
+    """Load data + fit models — shared by real and rehearsal modes.
+
+    individual_df is set only when we have individual-level records (CSV, or
+    JSON with a `records` list); otherwise the input is aggregate.
+    MissingDependency anywhere below is FATAL — an analysis must never be
+    reported as a partial/skipped result (same rule in both modes)."""
+    individual_df = None
+    survival_records: List[Dict] = []
+    time_varying_records: List[Dict] = []
+
+    try:
+        if data_path.endswith(".json"):
+            with open(data_path) as f:
+                data = json.load(f)
+            survival_records = data.get("survival_records", [])
+            time_varying_records = data.get("time_varying_records", [])
+            records = data.get("records")
+            if records:
+                individual_df = _load_records_df(records)
+                counts = _counts_from_df(individual_df)
+            else:
+                counts = data.get("row_counts", data)
+        else:
+            # CSV is individual-level. pandas is a hard requirement here.
+            individual_df = _read_csv_df(data_path)
+            counts = _counts_from_df(individual_df)
+            if {"time", "event", "exposed"}.issubset(individual_df.columns):
+                survival_records = individual_df.to_dict("records")
+
+        if individual_df is not None and {"event", "exposed"}.issubset(individual_df.columns):
+            glm_fit = fit_glm_individual(individual_df)
+        else:
+            glm_fit = effect_from_counts(counts)
+        cox_fit = fit_cox(survival_records, time_varying_records)
+    except MissingDependency as exc:
+        print(
+            f"ERROR: this analysis requires '{exc.dep}' but it is not installed. "
+            "Install runtime deps (pip install -r requirements.txt) and re-run — "
+            "an analysis must not be reported as a partial/skipped result.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    return counts, glm_fit, cox_fit
+
+
+def _carries_synthetic_watermark(data_path: str) -> bool:
+    """True when the input carries synth_builder's in-band watermark. Real-data
+    analysis refuses such input outright (guardrail #1, enforced in code)."""
+    try:
+        if data_path.endswith(".json"):
+            with open(data_path) as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                if data.get("is_synthetic"):
+                    return True
+                records = data.get("records") or data.get("survival_records") or []
+                return bool(records and isinstance(records[0], dict) and records[0].get("is_synthetic"))
+            return False
+        with open(data_path, encoding="utf-8", errors="replace") as f:
+            header = f.readline()
+        return "is_synthetic" in [c.strip().strip('"') for c in header.split(",")]
+    except OSError:
+        return False
+
+
+def run_rehearsal(project_dir: str, data_path: str, sap_version: str) -> dict:
+    """Rehearsal analysis: the same fitting pipeline as real mode, NO gate
+    checks (rehearsal is practice, not evidence). Output is watermarked and the
+    caller stores it under .research/rehearsal/ — physically separated from
+    real artifacts; state.json steps/artifacts/execution_mode are untouched."""
+    counts, glm_fit, cox_fit = _load_and_fit(data_path)
+    return {
+        "source": "rehearsal",
+        "watermark": "NOT REAL DATA — REHEARSAL ONLY",
+        "sap_version": sap_version,
+        "analyzed_at": datetime.now().isoformat(),
+        "table1": counts,
+        "model_summary": compute_effects(counts),
+        "model_fits": {
+            "glm_binomial": glm_fit,
+            "cox": cox_fit,
+        },
+    }
+
+
 def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
+    # Refuse synthetic input before anything else — a rehearsal file must never
+    # masquerade as real evidence, however the gates stand.
+    if _carries_synthetic_watermark(data_path):
+        print("ERROR: input data carries an is_synthetic watermark — real-data "
+              "analysis refuses synthetic input. Use --mode rehearsal instead.",
+              file=sys.stderr)
+        sys.exit(1)
+
     # Check real-data gates. Prefer state.json v2 via state_tool's shared
     # check_real_data_gates (gate.feasibility/protocol/qc). Fall back to the
     # legacy gates.json {"4","5","9"} logic when state is v1 or absent.
@@ -571,46 +666,7 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
             print("ERROR: QC has critical flags. Resolve before running real analysis.", file=sys.stderr)
             sys.exit(1)
 
-    # Load data + fit models. individual_df is set only when we have
-    # individual-level records (CSV, or JSON with a `records` list); otherwise the
-    # input is aggregate. MissingDependency anywhere below is FATAL in real mode —
-    # a real analysis must never be reported as a partial/skipped result.
-    individual_df = None
-    survival_records: List[Dict] = []
-    time_varying_records: List[Dict] = []
-
-    try:
-        if data_path.endswith(".json"):
-            with open(data_path) as f:
-                data = json.load(f)
-            survival_records = data.get("survival_records", [])
-            time_varying_records = data.get("time_varying_records", [])
-            records = data.get("records")
-            if records:
-                individual_df = _load_records_df(records)
-                counts = _counts_from_df(individual_df)
-            else:
-                counts = data.get("row_counts", data)
-        else:
-            # CSV is individual-level. pandas is a hard requirement in real mode.
-            individual_df = _read_csv_df(data_path)
-            counts = _counts_from_df(individual_df)
-            if {"time", "event", "exposed"}.issubset(individual_df.columns):
-                survival_records = individual_df.to_dict("records")
-
-        if individual_df is not None and {"event", "exposed"}.issubset(individual_df.columns):
-            glm_fit = fit_glm_individual(individual_df)
-        else:
-            glm_fit = effect_from_counts(counts)
-        cox_fit = fit_cox(survival_records, time_varying_records)
-    except MissingDependency as exc:
-        print(
-            f"ERROR: real-data analysis requires '{exc.dep}' but it is not installed. "
-            "Install runtime deps (pip install -r requirements.txt) and re-run — "
-            "a real analysis must not be reported as a partial/skipped result.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    counts, glm_fit, cox_fit = _load_and_fit(data_path)
 
     return {
         "source": "real",
@@ -627,15 +683,15 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Run statistical analysis")
-    parser.add_argument("--mode", required=True, choices=["synthetic", "real", "plan"])
+    parser.add_argument("--mode", required=True, choices=["synthetic", "real", "plan", "rehearsal"])
     parser.add_argument("--project-dir", required=True, help="Path to .research/ directory")
     parser.add_argument("--sap-version", default="v0.1")
     parser.add_argument("--data-path", help="Path to real data (required for real mode)")
     parser.add_argument("--plan-path", help="Path to analysis-plan.json (required for plan mode)")
     args = parser.parse_args()
 
-    if args.mode == "real" and not args.data_path:
-        print("ERROR: --data-path required for real mode", file=sys.stderr)
+    if args.mode in ("real", "rehearsal") and not args.data_path:
+        print(f"ERROR: --data-path required for {args.mode} mode", file=sys.stderr)
         sys.exit(1)
 
     # plan mode: emit the reproducible R script + precondition report. No gates
@@ -655,13 +711,20 @@ def main():
             print(f"  [{w['severity'].upper()}] {w['check']}: {w['detail']}")
         sys.exit(0)
 
-    output_dir = os.path.join(args.project_dir, "analysis", args.mode)
+    if args.mode == "rehearsal":
+        # Physically separated tree — rehearsal outputs can never collide with
+        # real artifacts (state-machine.md "Outside the DAG").
+        output_dir = os.path.join(args.project_dir, "rehearsal", "analysis")
+    else:
+        output_dir = os.path.join(args.project_dir, "analysis", args.mode)
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"Running {args.mode} analysis...")
 
     if args.mode == "synthetic":
         result = run_synthetic(args.project_dir, args.sap_version)
+    elif args.mode == "rehearsal":
+        result = run_rehearsal(args.project_dir, args.data_path, args.sap_version)
     else:
         result = run_real(args.project_dir, args.data_path, args.sap_version)
 
