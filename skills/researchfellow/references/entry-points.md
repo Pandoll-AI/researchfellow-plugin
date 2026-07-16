@@ -8,7 +8,7 @@
 ## Routing recap
 
 ```
-/research
+/rf   (= /researchfellow)
   state.json exists            → S0 resume view (+ "새 프로젝트 시작")
   absent, free-text argument   → S1 directly (argument = the idea)
   absent, no usable argument   → 5+1 starting-point cards (AskUserQuestion, order fixed)

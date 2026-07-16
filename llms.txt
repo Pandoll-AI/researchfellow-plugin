@@ -13,9 +13,9 @@ on a user's behalf. Follow the steps in order; each has a verification command.
 
 - Plugin name: `researchfellow` (manifest: `.claude-plugin/plugin.json`, v0.1.x)
 - One skill: `skills/researchfellow/SKILL.md` (router; details live in `references/`)
-- One command: `/research` → may be namespaced as `/researchfellow:research` if another
-  skill/plugin claims the short name (e.g., a legacy `research-assistant` skill —
-  recommend disabling it)
+- Two command names (aliases, identical behavior): `/rf` (primary) and `/researchfellow`.
+  Either may be namespaced (`/researchfellow:rf`) if another skill/plugin claims the
+  short name; prefer `/researchfellow` when `/rf` collides.
 - State lives in the user's project folder under `.research/` (human-readable JSON/JSONL/MD)
 
 ## Install
@@ -31,14 +31,14 @@ Option B — persistent install via marketplace, inside a Claude Code session:
     /plugin marketplace add Pandoll-AI/researchfellow-plugin   # or a local path
     /plugin install researchfellow
 
-Verify: start Claude Code in an empty folder and run `/researchfellow:research`.
+Verify: start Claude Code in an empty folder and run `/rf` (or `/researchfellow`).
 Expected: a "무엇을 하시겠어요?" menu with 5 entry-point cards (idea / dataset /
 new manuscript / revise / reviewer response). No configuration is required (DT-3).
 
 ## Operate
 
-- New study: user picks a card, or passes free text: `/research <idea>`.
-- Resume: `/research` in a folder containing `.research/` shows "이어서: <next action>".
+- New study: user picks a card, or passes free text: `/rf <idea>`.
+- Resume: `/rf` in a folder containing `.research/` shows "이어서: <next action>".
 - Arguments: `status` (dashboard), `next` (advance), `step N` (target a step).
 - The skill runs deterministic judges before acting. Never bypass them:
 
@@ -85,7 +85,7 @@ new manuscript / revise / reviewer response). No configuration is required (DT-3
 
 1. `python3 -c "import json; json.load(open('.claude-plugin/plugin.json'))"` → OK
 2. `python3 -m py_compile skills/researchfellow/scripts/*.py` → OK
-3. Fresh folder + `/researchfellow:research` → 5-card menu appears
-4. Folder with `.research/` + `/researchfellow:research` → resume view ("이어서: …")
+3. Fresh folder + `/rf` → 5-card menu appears
+4. Folder with `.research/` + `/rf` → resume view ("이어서: …")
 5. `state_tool.py can-enter --step 10` on a fresh project → exit 2 with missing list
    (proves the gate/DAG judge is wired)
