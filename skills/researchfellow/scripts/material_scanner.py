@@ -866,10 +866,6 @@ def scan(inputs: List[str], paste_refs: str, project_dir: str,
             if e["format"] == "tabular" and e["subtype"] in ("csv", "xlsx"):
                 target = e["source_path"]
                 e["phi"] = run_phi_screen(target, e["material_id"], project_dir)
-                if e["phi"].get("severity") in ("warning", "critical"):
-                    hint = e["rule_role_hint"]
-                    e.setdefault("flags", [])
-                    e["flags"].append("phi_suspect")
 
     # Flags are format-agnostic: tabular phi comes from the subprocess screen
     # above, document/code phi from the inline excerpt masking — either way the
