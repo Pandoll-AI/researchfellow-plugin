@@ -9,7 +9,10 @@ JSON that Stage 2 (host-LLM batch classification) consumes.
 
 It NEVER extracts PDF text (that is delegated to the host LLM Read tool) and
 NEVER calls the network. Optional `--phi-screen` shells out to phi_screener.py
-for tabular files.
+for tabular files. Scanner-produced text excerpts (docx / md / txt / code,
+headings included) are ALWAYS masked through the phi_detect engine before they
+enter the scan report — independent of --phi-screen — because excerpts feed
+the host-LLM Stage 2 batch classification.
 
 Usage:
     python3 material_scanner.py \
@@ -39,6 +42,16 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# PHI engine — soft import, deliberately unlike phi_screener's hard import:
+# a batch intake scan must not abort wholesale over one missing module. The
+# fallback is still fail-closed PER FILE: without the engine, scanner-produced
+# excerpts are withheld ("" + excerpt_source="unscreened"), never emitted raw.
+sys.path.insert(0, SCRIPT_DIR)
+try:
+    import phi_detect
+except ImportError:  # pragma: no cover - both files ship together
+    phi_detect = None
 
 # ---------------------------------------------------------------------------
 # Regexes
@@ -405,6 +418,35 @@ def scan_pdf(path: str) -> Dict[str, Any]:
     }
 
 
+def _mask_excerpt_text(raw: str) -> Tuple[str, Dict[str, Any]]:
+    """Mask PHI in scanner-produced text BEFORE excerpt slicing (mask-then-slice:
+    an identifier straddling the cutoff can then only lose placeholder chars,
+    never leave original fragments behind). Fail-closed: if the engine is
+    unavailable or errors — including an unsupported RF_PHI_BACKEND — the text
+    is withheld entirely rather than emitted unscreened. Only the exception
+    type name is recorded, never content."""
+    if phi_detect is None:
+        return "", {"screened": False, "reason": "phi_engine_unavailable"}
+    try:
+        backend = phi_detect.get_backend()
+        masked, findings = phi_detect.redact_text(raw, backend=backend)
+    except Exception as exc:
+        return "", {"screened": False, "reason": type(exc).__name__}
+    return masked, {
+        "screened": True,
+        "backend": backend.name,
+        "target": "excerpt",
+        "severity": phi_detect.max_severity(findings),
+        "finding_count": len(findings),
+    }
+
+
+def _mask_headings(headings: List[str]) -> List[str]:
+    """Headings are stored as a raw list separate from the excerpt, so they get
+    their own masking pass ("" per heading when the engine is unavailable)."""
+    return [_mask_excerpt_text(h)[0] for h in headings]
+
+
 def scan_docx(path: str) -> Dict[str, Any]:
     ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
     text_parts: List[str] = []
@@ -426,34 +468,39 @@ def scan_docx(path: str) -> Dict[str, Any]:
                     headings.append(para.strip())
     except Exception:
         pass
-    excerpt = "\n".join(text_parts)[:TEXT_EXCERPT_LEN]
-    ids = _scan_identifiers_text(excerpt)
+    full_text = "\n".join(text_parts)
+    # DOI/PMID extraction keeps its original (pre-mask) scope — bibliographic
+    # identifiers are the scanner's own feature, not PHI.
+    ids = _scan_identifiers_text(full_text[:TEXT_EXCERPT_LEN])
+    masked_full, phi_record = _mask_excerpt_text(full_text)
     structure = _empty_structure()
-    structure["excerpt"] = excerpt
-    structure["headings"] = headings[:30]
+    structure["excerpt"] = masked_full[:TEXT_EXCERPT_LEN]
+    structure["headings"] = _mask_headings(headings[:30])
     return {
         "structure": structure,
         "identifiers": ids,
         "rule_role_hint": {"role": None, "rule": None, "certainty": "none"},
         "needs_llm": True,
-        "excerpt_source": "scanner",
+        "excerpt_source": "scanner" if phi_record.get("screened") else "unscreened",
+        "phi": phi_record,
     }
 
 
 def scan_text_document(path: str, subtype: str) -> Dict[str, Any]:
     text = _read_text(path, TEXT_EXCERPT_LEN * 4)
-    excerpt = text[:TEXT_EXCERPT_LEN]
     headings = [h.strip() for h in MD_HEADER_RE.findall(text)] if subtype == "md" else []
     ids = _scan_identifiers_text(text)
+    masked, phi_record = _mask_excerpt_text(text)
     structure = _empty_structure()
-    structure["excerpt"] = excerpt
-    structure["headings"] = headings[:30]
+    structure["excerpt"] = masked[:TEXT_EXCERPT_LEN]
+    structure["headings"] = _mask_headings(headings[:30])
     return {
         "structure": structure,
         "identifiers": ids,
         "rule_role_hint": {"role": None, "rule": None, "certainty": "none"},
         "needs_llm": True,
-        "excerpt_source": "scanner",
+        "excerpt_source": "scanner" if phi_record.get("screened") else "unscreened",
+        "phi": phi_record,
     }
 
 
@@ -478,15 +525,19 @@ def scan_code(path: str, subtype: str) -> Dict[str, Any]:
     if role is None:
         # generic code file — let LLM decide
         role, certainty, rule = None, "none", None
+    # Signature/role detection above ran on the ORIGINAL text — masking must
+    # never disturb role judgement. Only the stored excerpt is masked.
+    masked, phi_record = _mask_excerpt_text(text)
     structure = _empty_structure()
-    structure["excerpt"] = text[:TEXT_EXCERPT_LEN]
+    structure["excerpt"] = masked[:TEXT_EXCERPT_LEN]
     structure["signatures"] = signatures
     return {
         "structure": structure,
         "identifiers": _scan_identifiers_text(text),
         "rule_role_hint": {"role": role, "rule": rule, "certainty": certainty},
         "needs_llm": certainty != "strong",
-        "excerpt_source": "scanner",
+        "excerpt_source": "scanner" if phi_record.get("screened") else "unscreened",
+        "phi": phi_record,
     }
 
 
@@ -802,7 +853,7 @@ def scan(inputs: List[str], paste_refs: str, project_dir: str,
             "lineage_pre": {"duplicate_of": None, "version_group_candidate": None},
             "needs_llm": scan_result["needs_llm"],
             "excerpt_source": scan_result["excerpt_source"],
-            "phi": {"screened": False},
+            "phi": scan_result.get("phi", {"screened": False}),
         }
         entries.append(entry)
 
@@ -819,6 +870,20 @@ def scan(inputs: List[str], paste_refs: str, project_dir: str,
                     hint = e["rule_role_hint"]
                     e.setdefault("flags", [])
                     e["flags"].append("phi_suspect")
+
+    # Flags are format-agnostic: tabular phi comes from the subprocess screen
+    # above, document/code phi from the inline excerpt masking — either way the
+    # same channel (entry["phi"] + entry["flags"]) reaches Stage 2.
+    for e in entries:
+        phi_info = e.get("phi") or {}
+        if phi_info.get("severity") in ("warning", "critical"):
+            e.setdefault("flags", [])
+            if "phi_suspect" not in e["flags"]:
+                e["flags"].append("phi_suspect")
+        if phi_info.get("screened") is False and phi_info.get("reason"):
+            e.setdefault("flags", [])
+            if "needs_full_read" not in e["flags"]:
+                e["flags"].append("needs_full_read")
 
     llm_batch_needed = [e["material_id"] for e in entries if e["needs_llm"]]
 
@@ -840,7 +905,9 @@ def main() -> None:
     parser.add_argument("--paste-refs", default="", help='Pasted refs, e.g. "PMID:38812345, 10.1001/jama..."')
     parser.add_argument("--project-dir", default=".research", help="Project directory (default .research)")
     parser.add_argument("--no-copy", action="store_true", help="Do not copy originals into materials/")
-    parser.add_argument("--phi-screen", action="store_true", help="Run phi_screener.py on tabular files")
+    parser.add_argument("--phi-screen", action="store_true",
+                        help="Run phi_screener.py on tabular files (docx/md/txt/code excerpt "
+                             "masking is always on, regardless of this flag)")
     parser.add_argument("--output", required=True, help="Output path for scan-report JSON")
     args = parser.parse_args()
 
