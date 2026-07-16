@@ -35,6 +35,34 @@ receives only de-identified derivatives. See "Remote Enrichment Points" below.
 
 ---
 
+## Telemetry consent gate (runs FIRST, before any routing)
+
+Before anything else — **before even checking `.research/state.json`** — check whether
+`~/.researchfellow/config.json` exists. If it does, proceed. If not, explain and ask:
+
+```
+Question: "ResearchFellow는 개선을 위해 '어느 단계에서 시작해 몇 단계까지 도달했는지'
+           단계 번호와 사용 빈도만 익명 토큰으로 기록합니다. 연구 내용(아이디어·데이터·
+           원고·대화)은 전혀 전송되지 않습니다. 사용하려면 이 수집에 대한 동의가 필요합니다."
+Options:
+  - "동의하고 시작" — 익명 토큰을 발급받고 진행합니다
+  - "설명 더 보기" — 무엇을 보내고/보내지 않는지 상세히 설명한 뒤 다시 묻습니다
+  - "종료" — 이번 세션에서는 진행하지 않습니다
+```
+
+- "동의하고 시작" → run
+  `python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/telemetry.py register --plugin-version <version from plugin.json>`
+  then continue to Initialization routing. Registration failure is fine — the script
+  grants an offline grace identity and queues events locally (closed hospital networks);
+  never surface a network error, never retry loudly.
+- "설명 더 보기" → 보내는 것: 이벤트명·단계 번호(1-13)·진입점(S1-S5)·버전·익명 토큰.
+  보내지 않는 것: 자유 텍스트, 파일, PICO 내용, 데이터, 원고, 대화. 철회:
+  `telemetry.py revoke` (서버 기록 삭제 + 로컬 동의 파일 제거). 그 후 다시 묻는다.
+- **"종료" → do not proceed with any research work this session.** This is the single
+  explicit exception to "do not block; go shallow" — consent is a precondition of use.
+
+---
+
 ## Initialization routing (on `/research`)
 
 Check whether `.research/state.json` exists.
@@ -58,8 +86,10 @@ enterable step by trying `can-enter` in order.
 > ⑤ 리뷰어 대응부터 할래요
 
 Map: ①→S1, ②→S2, ③→S3, ④→S4, ⑤→S5. On selection, initialize `state.json` from
-`templates/project-init.json`, record `entry_point`, and append an `ENTRY_POINT` audit
-event (FR-E7). Then run the chosen entry path.
+`templates/project-init.json`, set `project_id` to the output of
+`python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/telemetry.py new-project-id`
+(a real uuid4 — never invent one), record `entry_point`, and append an `ENTRY_POINT`
+audit event (FR-E7). Then run the chosen entry path.
 
 **→ Before routing any entry point, read `references/entry-points.md` in full.** It holds
 the card copy, the S1 interview banks, and the S2–S5 procedures.
@@ -266,7 +296,26 @@ Events: `PROJECT_INIT`, `STEP_STARTED`, `STEP_COMPLETED`, `GATE_APPROVED`,
 `GATE_REJECTED`, `GATE_CHANGES_REQUESTED`, `ARTIFACT_CREATED`, `ARTIFACT_UPDATED`,
 `ENTRY_POINT`, `ARTIFACT_IMPORTED`, `ARTIFACT_REVERSE_FILLED`, `GATE_RETROACTIVE`,
 `MATERIAL_RECLASSIFIED`, `PROVENANCE_ATTESTED`, `ARTIFACT_INVALIDATED`, `SCHEMA_UPGRADED`,
-`PHI_DETECTED`.
+`PHI_DETECTED`, `SESSION_RESUMED`.
+
+### Telemetry emission points (1:1 with the audit events above)
+
+Whenever you append one of these audit events, ALSO run the matching telemetry call
+(fire-and-forget — it always exits 0 and must never delay or block the flow). Read
+`--entry-point` fresh from `state.json.entry_point.id` each time (never cache it).
+**Rehearsal-mode activity (`.research/rehearsal/`) emits NO step events** — the funnel
+tracks real progress only.
+
+| Audit event | Telemetry call (`python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/telemetry.py …`) |
+|---|---|
+| `PROJECT_INIT` | `emit --event project_created --project-dir .research` |
+| `ENTRY_POINT` | `emit --event entry_point_selected --entry-point {S1..S5} --project-dir .research` |
+| `STEP_STARTED` | `emit --event step_entered --step {N} --project-dir .research` |
+| `STEP_COMPLETED` | `emit --event step_completed --step {N} --project-dir .research` |
+| `GATE_APPROVED` | `emit --event gate_approved --step {gate.blocks_step} --project-dir .research` |
+| `GATE_REJECTED` | `emit --event gate_rejected --step {gate.blocks_step} --project-dir .research` |
+| `GATE_CHANGES_REQUESTED` | `emit --event gate_changes_requested --step {gate.blocks_step} --project-dir .research` |
+| `SESSION_RESUMED` (append on S0 resume render) | `emit --event session_resumed --entry-point {원래 진입점} --project-dir .research` |
 
 ---
 
@@ -286,5 +335,4 @@ these steps; the free workflow completes fully without it.
 Rules: **①** when available, send **only de-identified derivatives** (PICO, schema,
 aggregates, text) — run `phi_screener.py` and confirm clean before sending. **②** if the
 server is absent or a call fails, **skip silently** — never surface a connection error.
-**③** the upgrade teaser is shown **once only**, when `state.json` `remote.teaser_shown`
-is `false` (then set it `true`); phrase it honestly as added depth, not a blocker.
+All remote tools answer in full for everyone; never mention pricing or upgrades.

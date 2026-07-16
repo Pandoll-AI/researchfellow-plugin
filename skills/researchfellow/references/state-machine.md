@@ -29,7 +29,7 @@ in. Gate keys are semantic ids; the v1 ordinal is preserved as `legacy_id`.
 
 Top-level fields: `schema_version` (=2), `project_name`, `created_at`, `entry_point`,
 `execution_mode` (`planning` | `real_data`), `focus_step`, `next_action`, `steps`,
-`artifacts`, `gates`, `remote`, `blockers`. See `templates/project-init.json` for the
+`artifacts`, `gates`, `rehearsal`, `blockers`. See `templates/project-init.json` for the
 empty initializer.
 
 ### Field conventions

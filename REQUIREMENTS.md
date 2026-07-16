@@ -74,7 +74,7 @@
 | FR-T4 | `analysis_runner` | synthetic/real 모드, real은 hard gate 검증 후 실행 (승계) |
 | FR-T5 | `material_scanner` (신규) | 분류 Stage 0~1: 형식 판별 + 구조 스캔 + tabular 프로파일 + DOI/PMID 추출 |
 | FR-T6 | `phi_screener` (신규) | FR-M10의 규칙 스캔. 독립 실행 가능 (분류와 분리) |
-| FR-T7 | 모든 스크립트는 stdlib 우선, 네트워크 접근은 pubmed_search만 (그 외 오프라인 동작) |
+| FR-T7 | 모든 스크립트는 stdlib 우선. 네트워크 접근은 `pubmed_search`(문헌 검색)와 `telemetry`(동의 기반 퍼널 카운터, fire-and-forget — FR-P)만. 그 외 오프라인 동작 |
 
 ## 6. FR-G — 가드레일 (전부 무료)
 
@@ -88,15 +88,27 @@
 | FR-G4 | hard gate 미승인·QC critical 시 real 분석 차단 |
 | FR-G5 | imported 자산 기반 주장에는 provenance 상태를 원고 limitation에 자동 반영 |
 
-## 7. FR-X — 원격 MCP 통합 (유료 계층 접점)
+## 7. FR-X — 원격 MCP 통합
 
 | ID | 요구사항 |
 |----|---------|
 | FR-X1 | `.mcp.json`으로 researchfellow-mcp 원격 서버 등록 (Streamable HTTP) |
 | FR-X2 | 워크플로우 자연 지점에서 원격 도구를 호출한다: Step 3→`novelty_check`, Step 6→`methodology_advisor`, Step 11→`checklist_map`, Step 12→`integrity_report`, Step 13→`reviewer_playbook` |
-| FR-X3 | 미인증/미구독 시 티저 응답을 그대로 표시하고 업그레이드 경로를 1회만 안내한다 (반복 광고 금지) |
+| FR-X3 | **(2026-07-16 개정)** 원격 도구는 인증 여부와 무관하게 항상 동일한(full) 결과를 반환한다. 업그레이드·가격 안내 문구는 어디에도 표시하지 않는다 |
 | FR-X4 | 원격 도구에 전송하는 입력은 비식별 파생물만: PICO, 스키마(컬럼명·타입), 집계 통계, 텍스트 초안. **raw 데이터 행 전송 금지** — 전송 전 FR-T6로 확인 |
 | FR-X5 | 원격 서버 불가용 시 해당 기능만 건너뛰고 워크플로우는 계속된다 (오프라인 완주 보장) |
+
+## 7b. FR-P — 프라이버시·텔레메트리 (2026-07-16 신설)
+
+| ID | 요구사항 |
+|----|---------|
+| FR-P1 | **동의 게이트**: 첫 `/research` 실행 시(모든 라우팅·상태 확인 이전) 토큰 발급 + 단계별 사용 이력 수집에 대한 동의를 받는다. 미동의 시 진행하지 않는다 — "막지 말고 얕게"의 유일한 명시적 예외 |
+| FR-P2 | **수집 항목은 퍼널 카운터뿐**: 이벤트명(8종)·단계 번호(1-13)·진입점(S1-S5)·플러그인 버전·익명 토큰·프로젝트 해시(uuid4의 sha256). 자유 텍스트·아티팩트·대화는 스키마상 전송 불가 |
+| FR-P3 | **유예(폐쇄망)**: 토큰 발급 실패 시 로컬 임시 ID(`local:<uuid4>`)로 시작을 허용하고 이벤트는 로컬 큐(캡 500)에 적재, 온라인 복구 시 정식 토큰으로 치환 후 소급 전송 |
+| FR-P4 | **비차단**: telemetry.py는 어떤 경우에도 exit 0 (타임아웃 1.5s, fire-and-forget). 텔레메트리 실패가 워크플로우를 지연·차단하지 않는다 |
+| FR-P5 | **철회**: `telemetry.py revoke` — 서버 이벤트 삭제 + 토큰 revoked + 로컬 동의 파일 제거. 절차는 공개 프라이버시 문서(web/privacy.html)에 명시 |
+| FR-P6 | 설치 단위 상태는 `~/.researchfellow/`(config.json, queue.jsonl) — 프로젝트 단위 `.research/`와 구분되는 유일한 글로벌 상태 |
+| FR-P7 | `state.json.project_id`는 `telemetry.py new-project-id`가 생성한 실제 uuid4 — `project_name`(자유 문자열)은 절대 해시 원본으로 쓰지 않는다 |
 
 ## 8. 파일 레이아웃 (유저 프로젝트)
 

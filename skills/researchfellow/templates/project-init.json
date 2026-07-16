@@ -1,5 +1,6 @@
 {
   "schema_version": 2,
+  "project_id": "",
   "project_name": "",
   "created_at": "",
   "entry_point": {
@@ -39,6 +40,6 @@
     "gate.results":     { "status": "pending", "type": "soft", "retroactive": false, "legacy_id": "10", "blocks_step": 11 },
     "gate.manuscript":  { "status": "pending", "type": "soft", "retroactive": false, "legacy_id": "11", "blocks_step": 12 }
   },
-  "remote": { "teaser_shown": false },
+  "rehearsal": { "active": false, "generated_at": null, "seed": null, "consented_at": null },
   "blockers": []
 }
