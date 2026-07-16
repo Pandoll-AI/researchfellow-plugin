@@ -88,8 +88,10 @@ When materials are offered, run this pipeline (details in `references/material-i
 
 1. **scan** — `material_scanner.py` detects format, structure, rule role hints, lineage;
    copies originals into `materials/` (immutable).
-2. **phi** — `phi_screener.py` on tabular files; on warning/critical, warn **without ever
-   quoting the matched value**.
+2. **phi** — `phi_screener.py` on tabular files; docx/md/txt/code excerpts (headings
+   included) are masked through the `phi_detect` engine **always** — hits become
+   `[MASKED:rule]` placeholders, intake continues. On warning/critical, warn **without
+   ever quoting the matched value**.
 3. **batch classify** — host-LLM Stage 2 assigns role/confidence/rationale per material
    (high → silently confirmed, medium → briefing row, low → Stage 3 or a question row).
 4. **briefing (3 agendas)** — ① 할 수 있는 것 ② 자료 수준 평가(갭 리포트) ③ 시작점 제안

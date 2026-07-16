@@ -31,15 +31,27 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/material_scanner.py 
 ```
 
 - `--input` is repeatable (files or directories). `--paste-refs` accepts loose PMIDs/DOIs.
-- `--phi-screen` shells out to `phi_screener.py` for tabular files during the scan.
+- `--phi-screen` shells out to `phi_screener.py` for **tabular files only** during the scan.
+  Scanner-produced text excerpts (docx / md / txt / code, headings included) are masked
+  through the `phi_detect` engine **always, independent of this flag** — hits are replaced
+  with `[MASKED:<rule_id>]` placeholders before the excerpt enters the report, and intake
+  continues (mask-only policy).
 - Originals are copied to `materials/<sha256[:12]>_<name>` unless `--no-copy`.
 - Output `scan-report.json`: `entries[]` (each with `format`, `structure`,
   `rule_role_hint{role,rule,certainty}`, `identifiers`, `lineage_pre`, `needs_llm`,
   `excerpt_source`, `phi`), `pasted_refs[]`, `version_groups{}`, `llm_batch_needed[]`.
+- `entry.phi` has two shapes: tabular entries carry the subprocess screen result
+  (`severity`, `finding_count`, `report` = phi-report file path); document/code entries
+  carry the inline masking result (`backend`, `target: "excerpt"`, `severity`,
+  `finding_count`). Either shape feeds the same `flags` channel (`phi_suspect`).
 - `rule_role_hint.certainty == "strong"` ⇒ `needs_llm:false` — the rule already decided;
   do **not** spend an LLM call on it. Classify only the `llm_batch_needed` set in Stage 2.
 - PDFs carry `excerpt_source: "host_llm_read"` and no extracted text — you Read the first
   1–2 pages yourself when you need the excerpt (the scanner never extracts PDF text).
+- `excerpt_source: "unscreened"` means the masking engine was unavailable or errored and
+  the excerpt was **withheld** (fail-closed, empty string). The entry also carries a
+  `needs_full_read` flag — Read the original yourself only after confirming with the user,
+  and never paste identifier values into the conversation.
 
 ## PHI screener call (standalone)
 
@@ -51,6 +63,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/phi_screener.py \
 
 Exit `0 clean / 1 warning / 2 critical`. Report holds only
 `{column, rule_id, severity, match_count, match_rate, example_rows(row numbers only)}`.
+
+Detection logic lives in the `phi_detect` engine (`scripts/phi_detect.py`), selected via
+env `RF_PHI_BACKEND` (default `rules`). An unsupported backend value is an **explicit
+error** (`UnsupportedPHIBackendError`) — never a silent fallback: phi_screener exits
+non-zero, and material_scanner withholds excerpts per file (fail-closed). Future
+detection upgrades (NER / Presidio adapters) plug in as new backends without touching
+the callers.
 
 **PHI warning protocol:** on warning/critical, warn the user and recommend
 pseudonymization, but **never quote or reproduce a matched value** — reference the column
@@ -151,7 +170,9 @@ Priors **break ties only. Content evidence always wins.**
 
 `flags` domain (exactly these): `phi_suspect` | `plan_data_mismatch_suspect` |
 `competing_paper_novelty` | `needs_full_read`. Flags route to Layer 3; they are not
-classification verdicts.
+classification verdicts. Note: `phi_suspect` and `needs_full_read` can arrive from the
+scanner layer too (rule-based masking / engine fail-closed), not only from this Stage 2
+output — treat both origins identically.
 
 ### Confidence handling (FR-M9)
 
