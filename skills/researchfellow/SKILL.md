@@ -88,8 +88,11 @@ enterable step by trying `can-enter` in order.
 Map: ①→S1, ②→S2, ③→S3, ④→S4, ⑤→S5. On selection, initialize `state.json` from
 `templates/project-init.json`, set `project_id` to the output of
 `python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/telemetry.py new-project-id`
-(a real uuid4 — never invent one), record `entry_point`, and append an `ENTRY_POINT`
-audit event (FR-E7). Then run the chosen entry path.
+(a real uuid4 — never invent one), copy `templates/compliance-checklist-template.json`
+to `.research/compliance-checklist.json` (self-check list — **never ask about IRB or
+data reality during the flow**; it surfaces only as Step 12 advice and as a dashboard
+widget), record `entry_point`, and append an `ENTRY_POINT` audit event (FR-E7).
+Then run the chosen entry path.
 
 **→ Before routing any entry point, read `references/entry-points.md` in full.** It holds
 the card copy, the S1 interview banks, and the S2–S5 procedures.

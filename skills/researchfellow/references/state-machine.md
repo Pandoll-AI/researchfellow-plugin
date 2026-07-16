@@ -27,10 +27,17 @@ advisory labels (FR-E6), not a lock.
 Single file (`.research/state.json`, NFR-4). The v1 `gates.json` split is folded back
 in. Gate keys are semantic ids; the v1 ordinal is preserved as `legacy_id`.
 
-Top-level fields: `schema_version` (=2), `project_name`, `created_at`, `entry_point`,
-`execution_mode` (`planning` | `real_data`), `focus_step`, `next_action`, `steps`,
-`artifacts`, `gates`, `rehearsal`, `blockers`. See `templates/project-init.json` for the
-empty initializer.
+Top-level fields: `schema_version` (=2), `project_id` (uuid4, telemetry attribution
+only), `project_name`, `created_at`, `entry_point`, `execution_mode`
+(`planning` | `real_data`), `focus_step`, `next_action`, `steps`, `artifacts`, `gates`,
+`rehearsal`, `blockers`. See `templates/project-init.json` for the empty initializer.
+
+**Outside the DAG (never registered as artifacts, never a `[req]`/gate input):**
+`.research/compliance-checklist.json` (self-attested only — no deterministic
+consequence), `.research/desk/` (Desk sessions/answers), and the entire
+`.research/rehearsal/` tree (synthetic practice outputs — physically separated from
+real artifacts; rehearsal activity never flips `execution_mode` to `real_data` and
+never touches `steps.*.status`).
 
 ### Field conventions
 

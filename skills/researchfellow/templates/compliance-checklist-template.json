@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "self_attested_only": true,
+  "items": [
+    { "id": "irb_approval", "label_ko": "IRB(기관윤리위원회) 승인 또는 심의 면제 확인", "checked": false, "checked_at": null, "note": "" },
+    { "id": "data_access_authorization", "label_ko": "실제 데이터에 대한 접근 권한 확보", "checked": false, "checked_at": null, "note": "" },
+    { "id": "institutional_policy", "label_ko": "소속 기관의 연구·데이터 반출 정책 확인", "checked": false, "checked_at": null, "note": "" },
+    { "id": "preregistration", "label_ko": "사전등록 완료 (해당하는 경우)", "checked": false, "checked_at": null, "note": "", "applicable": "conditional" }
+  ],
+  "last_reviewed_at": null
+}

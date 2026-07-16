@@ -277,6 +277,13 @@ a table/figure, checklist coverage adequate. *(Remote: `checklist_map` can deepe
 report and an audit-trail (provenance) summary; verify all gates approved; format per the
 target journal's guidelines if specified.
 
+**Compliance advice (FYI only — never a gate, never a blocker):** read
+`.research/compliance-checklist.json` and, if any item is unchecked, add ONE advisory
+line to the package summary — e.g. "제출 전 확인: 자기 점검 항목 중 N개가 미확인
+상태입니다 (IRB 승인, …). 대부분의 저널이 Methods에 IRB 승인 정보를 요구합니다."
+This is the ONLY place the checklist is voiced; the flow never interrogates the user
+about IRB or data reality (2026-07-16 D7).
+
 **Output:** `submission_package` → `.research/submission/`
 
 **Gate:** none (final for the initial submission). *(Remote: `integrity_report` optional.)*
