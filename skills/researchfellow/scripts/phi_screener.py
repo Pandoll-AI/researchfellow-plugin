@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""PHI / personal-identifier screener for the ResearchFellow skill (FR-T6, FR-M10).
+"""PHI / personal-identifier screener CLI for the ResearchFellow skill (FR-T6, FR-M10).
 
-Rule-based screening of tabular (CSV / XLSX) or plain-text material for Korean
-personal identifiers. Standard library only, fully offline.
+Thin CLI wrapper: file loading (CSV / XLSX / plain text) and the exit-code
+contract live here; ALL detection logic lives in phi_detect.py (the engine,
+backend-swappable via RF_PHI_BACKEND). Standard library only, fully offline.
 
 ABSOLUTE RULE — a matched value or any fragment of it is NEVER written to
 stdout, stderr, the output JSON, or any exception message. Findings report only
@@ -30,29 +31,11 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-# ---------------------------------------------------------------------------
-# Patterns (compiled once). None of these values are ever emitted.
-# ---------------------------------------------------------------------------
-RRN_RE = re.compile(r"(?<!\d)(\d{6})[- ]?([1-4]\d{6})(?!\d)")
-PHONE_RE = re.compile(r"(?<!\d)01[016789][- ]?\d{3,4}[- ]?\d{4}(?!\d)")
-EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-DATE_RE = re.compile(r"(?<!\d)(?:\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{8})(?!\d)")
-KOR_SYLLABLE_RE = re.compile(r"^[가-힣]{2,4}$")
-
-NAME_COL_HINTS = ("이름", "성명", "성함", "환자명", "name", "patient_name", "pt_name")
-BIRTH_COL_HINTS = ("생년월일", "생일", "birth", "dob", "birthdate", "birth_date")
-
-# Rule -> base severity
-BASE_SEVERITY = {
-    "krn_rrn": "critical",
-    "phone_kr": "critical",
-    "person_name": "critical",
-    "email": "warning",
-    "exact_birthdate": "warning",
-}
-
-MATCH_RATE_DOWNGRADE_THRESHOLD = 0.05  # critical -> warning below this rate
-MAX_EXAMPLE_ROWS = 5
+# Hard import, deliberately no try/except (contrast: material_scanner's soft
+# import). Detection is this script's sole purpose — if the engine is missing,
+# crashing immediately is the correct fail-closed behavior.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import phi_detect  # noqa: E402
 
 RECOMMENDATION = (
     "식별자로 의심되는 컬럼/패턴이 감지되었습니다. 원본을 가명화(비식별화)한 뒤 "
@@ -66,46 +49,13 @@ RECOMMENDATION_CLEAN = (
 
 
 # ---------------------------------------------------------------------------
-# Checksum for Korean Resident Registration Number (오탐 감축)
-# ---------------------------------------------------------------------------
-def _rrn_checksum_valid(digits: str) -> bool:
-    """Validate the 13-digit RRN check digit. `digits` must be 13 chars, no sep."""
-    if len(digits) != 13 or not digits.isdigit():
-        return False
-    weights = [2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5]
-    total = sum(int(digits[i]) * weights[i] for i in range(12))
-    check = (11 - (total % 11)) % 10
-    return check == int(digits[12])
-
-
-# ---------------------------------------------------------------------------
-# Per-value rule checkers. Return True on a (validated) match. No value leaks.
-# ---------------------------------------------------------------------------
-def _hit_rrn(value: str) -> bool:
-    for m in RRN_RE.finditer(value):
-        if _rrn_checksum_valid(m.group(1) + m.group(2)):
-            return True
-    return False
-
-
-def _hit_phone(value: str) -> bool:
-    return PHONE_RE.search(value) is not None
-
-
-def _hit_email(value: str) -> bool:
-    return EMAIL_RE.search(value) is not None
-
-
-def _hit_full_date(value: str) -> bool:
-    return DATE_RE.search(value) is not None
-
-
-def _is_korean_name(value: str) -> bool:
-    return KOR_SYLLABLE_RE.match(value.strip()) is not None
-
-
-# ---------------------------------------------------------------------------
 # Loaders
+#
+# XML parsing uses stdlib ElementTree by design: FR-T7 pins this script to the
+# standard library (no defusedxml), inputs are the user's own local files (no
+# untrusted remote XML), ET does not resolve external entities, and modern
+# expat (>=2.4) caps entity amplification. Worst case is a local parse failure,
+# which the callers already treat as a screening error.
 # ---------------------------------------------------------------------------
 def _load_csv(path: str) -> Tuple[List[str], List[List[str]]]:
     import csv
@@ -201,94 +151,6 @@ def _load_xlsx(path: str, max_rows: int = 100000) -> Tuple[List[str], List[List[
 
 
 # ---------------------------------------------------------------------------
-# Tabular screening
-# ---------------------------------------------------------------------------
-def _column_name_matches(col: str, hints: Tuple[str, ...]) -> bool:
-    low = col.lower()
-    return any(h.lower() in low for h in hints)
-
-
-def _build_finding(column: Optional[str], rule_id: str, match_rows: List[int], n_rows: int) -> Dict[str, Any]:
-    match_count = len(match_rows)
-    match_rate = round(match_count / n_rows, 4) if n_rows else 0.0
-    severity = BASE_SEVERITY[rule_id]
-    downgraded = False
-    if severity == "critical" and match_rate < MATCH_RATE_DOWNGRADE_THRESHOLD:
-        severity = "warning"
-        downgraded = True
-    return {
-        "column": column,
-        "rule_id": rule_id,
-        "severity": severity,
-        "match_count": match_count,
-        "match_rate": match_rate,
-        "example_rows": match_rows[:MAX_EXAMPLE_ROWS],  # ROW NUMBERS ONLY
-        "downgraded_from_critical": downgraded,
-    }
-
-
-def screen_tabular(header: List[str], body: List[List[str]]) -> List[Dict[str, Any]]:
-    findings: List[Dict[str, Any]] = []
-    n_rows = len(body)
-    if n_rows == 0:
-        return findings
-
-    for col_idx, col in enumerate(header):
-        values = [(row[col_idx] if col_idx < len(row) else "") for row in body]
-
-        # ---- value-scan rules (apply to every column) ----
-        for rule_id, checker in (
-            ("krn_rrn", _hit_rrn),
-            ("phone_kr", _hit_phone),
-            ("email", _hit_email),
-        ):
-            match_rows = [i + 1 for i, v in enumerate(values) if v and checker(str(v))]
-            if match_rows:
-                findings.append(_build_finding(col, rule_id, match_rows, n_rows))
-
-        # ---- person_name: column-name gated + value heuristic ----
-        if _column_name_matches(col, NAME_COL_HINTS):
-            nonempty = [(i, v) for i, v in enumerate(values) if str(v).strip()]
-            name_rows = [i for i, v in nonempty if _is_korean_name(str(v))]
-            if nonempty:
-                kor_frac = len(name_rows) / len(nonempty)
-                unique_ratio = len({str(v).strip() for _, v in nonempty}) / len(nonempty)
-                if kor_frac >= 0.70 and unique_ratio >= 0.5:
-                    match_rows = [i + 1 for i in name_rows]
-                    findings.append(_build_finding(col, "person_name", match_rows, n_rows))
-
-        # ---- exact_birthdate: column-name gated + full-date value ----
-        if _column_name_matches(col, BIRTH_COL_HINTS):
-            match_rows = [i + 1 for i, v in enumerate(values) if v and _hit_full_date(str(v))]
-            if match_rows:
-                findings.append(_build_finding(col, "exact_birthdate", match_rows, n_rows))
-
-    return findings
-
-
-# ---------------------------------------------------------------------------
-# Free-text screening (non-tabular input)
-# ---------------------------------------------------------------------------
-def screen_text(text: str) -> List[Dict[str, Any]]:
-    findings: List[Dict[str, Any]] = []
-    lines = text.splitlines() or [text]
-    n_lines = len(lines)
-
-    def line_hits(checker) -> List[int]:
-        return [i + 1 for i, ln in enumerate(lines) if checker(ln)]
-
-    for rule_id, checker in (
-        ("krn_rrn", _hit_rrn),
-        ("phone_kr", _hit_phone),
-        ("email", _hit_email),
-    ):
-        rows = line_hits(checker)
-        if rows:
-            findings.append(_build_finding(None, rule_id, rows, n_lines))
-    return findings
-
-
-# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 def _detect_kind(path: str) -> str:
@@ -300,7 +162,7 @@ def _detect_kind(path: str) -> str:
     return "text"
 
 
-def run_screen(data_path: str) -> Dict[str, Any]:
+def run_screen(data_path: str, *, backend: Optional["phi_detect.PHIBackend"] = None) -> Dict[str, Any]:
     kind = _detect_kind(data_path)
     fmt = "tabular"
     screened_columns: List[str] = []
@@ -308,23 +170,19 @@ def run_screen(data_path: str) -> Dict[str, Any]:
     if kind == "csv":
         header, body = _load_csv(data_path)
         screened_columns = header
-        findings = screen_tabular(header, body)
+        findings = phi_detect.detect_tabular(header, body, backend=backend)
         n_rows = len(body)
     elif kind == "xlsx":
         header, body = _load_xlsx(data_path)
         screened_columns = header
-        findings = screen_tabular(header, body)
+        findings = phi_detect.detect_tabular(header, body, backend=backend)
         n_rows = len(body)
     else:
         fmt = "text"
         with open(data_path, encoding="utf-8", errors="replace") as f:
             text = f.read()
-        findings = screen_text(text)
+        findings = phi_detect.detect_text(text, backend=backend)
         n_rows = len(text.splitlines())
-
-    has_critical = any(f["severity"] == "critical" for f in findings)
-    has_warning = any(f["severity"] == "warning" for f in findings)
-    max_severity = "critical" if has_critical else ("warning" if has_warning else "clean")
 
     return {
         "data_path": data_path,
@@ -333,7 +191,7 @@ def run_screen(data_path: str) -> Dict[str, Any]:
         "screened_columns": screened_columns,
         "findings": findings,
         "finding_count": len(findings),
-        "max_severity": max_severity,
+        "max_severity": phi_detect.max_severity(findings),
         "recommendation": RECOMMENDATION if findings else RECOMMENDATION_CLEAN,
         "note": "매치된 값은 어디에도 기록되지 않습니다. 행 번호만 표기합니다.",
         "generated_at": datetime.now().isoformat(),
