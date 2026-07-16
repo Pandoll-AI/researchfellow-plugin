@@ -1,0 +1,12 @@
+{
+  "name": "researchfellow",
+  "description": "ResearchFellow — AI co-researcher for retrospective clinical research",
+  "owner": { "name": "Pandoll-AI" },
+  "plugins": [
+    {
+      "name": "researchfellow",
+      "source": "./",
+      "description": "아이디어 한 줄에서 논문까지 13단계를 함께 가는 AI 공동연구자. 환자 데이터는 로컬에서만 처리."
+    }
+  ]
+}
