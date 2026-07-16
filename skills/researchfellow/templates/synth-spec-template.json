@@ -1,0 +1,24 @@
+{
+  "_readme": "합성 코호트 분포 스펙 — LLM이 variables.json과 프로토콜에서 임상적으로 그럴듯한 파라미터를 채운다. dist: bernoulli{p} | normal{mu,sigma,min,max} | categorical{categories,weights} | uniform{lo,hi} | exponential{mean} | outcome_model{baseline_logit,coefficients} | outcome_model_survival{baseline_hazard,coefficients,follow_up_days,admin_censor,event_column}. outcome_model 계열은 앞서 정의된 공변량 이름을 coefficients에서 참조한다.",
+  "n": 500,
+  "seed": null,
+  "variables": {
+    "age": { "dist": "normal", "params": { "mu": 65, "sigma": 12, "min": 18, "max": 95 } },
+    "sex": { "dist": "categorical", "params": { "categories": ["M", "F"], "weights": [0.52, 0.48] } },
+    "exposed": { "dist": "bernoulli", "params": { "p": 0.35 } },
+    "event": {
+      "dist": "outcome_model",
+      "params": { "baseline_logit": -2.5, "coefficients": { "exposed": 0.6, "age": 0.02 } }
+    },
+    "time": {
+      "dist": "outcome_model_survival",
+      "params": {
+        "baseline_hazard": 0.002,
+        "coefficients": { "exposed": 0.4 },
+        "follow_up_days": 730,
+        "admin_censor": true,
+        "event_column": "event"
+      }
+    }
+  }
+}
