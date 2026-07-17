@@ -240,7 +240,7 @@ def _event_message(event: Dict[str, Any]) -> Optional[str]:
         "STEP_STARTED": f"{subject}을 시작했습니다" if subject else "단계를 시작했습니다",
         "STEP_COMPLETED": f"{subject}이 완료되었습니다" if subject else "단계가 완료되었습니다",
         "GATE_APPROVED": f"{gate} gate가 승인되었습니다" if gate else "gate가 승인되었습니다",
-        "GATE_REJECTED": f"{gate} gate가 반려되었습니다" if gate else "gate가 반려되었습니다",
+        "GATE_REJECTED": f"{gate}가 반려되었습니다" if gate else "gate가 반려되었습니다",
         "GATE_CHANGES_REQUESTED": f"{gate} gate에 수정이 요청되었습니다" if gate else "gate에 수정이 요청되었습니다",
         "ARTIFACT_CREATED": f"{subject}이 생성되었습니다" if subject else "산출물이 생성되었습니다",
         "ARTIFACT_UPDATED": f"{subject}이 갱신되었습니다" if subject else "산출물이 갱신되었습니다",

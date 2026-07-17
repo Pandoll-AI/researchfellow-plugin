@@ -29,6 +29,15 @@ Gate ids are semantic (not ordinals). Types (hard/soft) and anchors are in
 
 ---
 
+## Step Transition
+
+단계를 완료하면 세 무브로 보고합니다: 만든 내용의 요약 → 다음 단계가 왜 필요한지
+한 문장 안내 → 진행 여부 확인. 첫 무브의 요약은 채팅에 쓴 것과 같은 내용을 해당 단계
+폴더의 `SUMMARY.md`에도 저장합니다. `SUMMARY.md`는 매번 한국어 산문으로 전체를 새로
+작성해 이전 요약을 덮어쓰며, 보고에는 산출물 폴더 경로를 반드시 포함합니다.
+
+---
+
 ## Step 1: Idea / PICO Structuring
 
 **Purpose:** Transform a free-text research idea into a structured PICO/PECO framework.

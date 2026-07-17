@@ -5,4 +5,4 @@
 
 ## 2026-07-17
 - 2026-07-17 — 프로토콜이 생성되었습니다 (05_protocol/protocol.md v1)
-- 2026-07-17 — gate.endpoint gate가 반려되었습니다
+- 2026-07-17 — gate.endpoint가 반려되었습니다

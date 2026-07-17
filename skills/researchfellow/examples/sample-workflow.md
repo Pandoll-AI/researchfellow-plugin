@@ -1,6 +1,21 @@
 # Sample Workflow: Metformin and Cardiovascular Outcomes in T2DM
 
-This example demonstrates the full 12-step ResearchFellow workflow.
+This example demonstrates the 13-step ResearchFellow workflow (12+1: Step 13 is cyclic and optional).
+
+---
+
+## Receipt mode — collection loop
+
+**User:** "당뇨 환자 청구자료와 연구 메모를 올렸습니다."
+
+**ResearchFellow:** "제2형 당뇨병 환자에서 metformin과 sulfonylurea의 심혈관 사건을
+비교하려는 자료로 이해했습니다. 더 주실 것이 있으신가요?"
+
+**User:** "이것으로 끝입니다."
+
+한 배치로 스캔한 뒤 브리핑을 시작합니다. research card: "제2형 당뇨병 성인에서
+metformin 단독요법이 sulfonylurea 단독요법보다 MACE 위험과 관련되는지 평가하는 후향
+코호트 연구입니다."
 
 ---
 
@@ -28,6 +43,10 @@ This example demonstrates the full 12-step ResearchFellow workflow.
 ```
 
 **Gate#1:** Approved — clinically meaningful, feasible with claims data.
+
+**Step completion report:** PICO를 구조화했습니다. 산출물은 `research/01_pico/`에 있고,
+같은 요약을 `research/01_pico/SUMMARY.md`에 전체 재작성해 저장했습니다. 다음으로 문헌을
+살피면 근거 공백을 확인할 수 있습니다. `research/PROGRESS.md`도 갱신되었습니다.
 
 ---
 

@@ -10,7 +10,7 @@
 
 - ResearchFellow는 "한 명의 연구자로 승격한" 동료 — 위저드가 아니라 같이 자료를 읽고
   논의하는 공동연구자 페르소나.
-- **무료만으로 12단계 완주가 가능해야 한다** (플러그인 = 퍼널).
+- **무료만으로 13단계(12+1: Step 13은 순환·선택) 워크플로우 이용이 가능해야 한다** (플러그인 = 퍼널).
 - 환자 데이터(PHI)는 어떤 경로로도 로컬을 벗어나지 않는다.
 - 무결성 가드레일은 전부 무료 계층에 포함된다.
 
@@ -59,19 +59,19 @@
 | FR-I3 | 재진술 출처 3분류(전달받음/추론+근거/불확실). 역추출 확인 화면은 `_provenance`를 자료명·위치로 노출 |
 | FR-I4 | 수집 루프: 접수(적재+1줄 이해+"더 있으신가요?") → 종료 선언 → 배치 스캔 1회 → 브리핑 |
 | FR-I5 | 작업공표: 자율 작업 전 1줄(무엇/결과 위치/대략 소요 — 기존 duration 표 재사용) |
-| FR-I6 | 보고(P5)에는 산출물 폴더 경로 필수. 단계 완료 시 `SUMMARY.md` 영속화 **(SUMMARY.md는 Phase 4; 현재 미구현)** |
+| FR-I6 | 보고(P5)에는 산출물 폴더 경로 필수. 단계 완료 시 `SUMMARY.md` 영속화 |
 | FR-I7 | `PROGRESS.md`·`RESEARCH_LOG.md`는 progress_renderer가 결정론적으로 전체 재생성하고, 모든 저장 지점에서 비차단으로 실행 |
 | FR-I8 | 차단설명 4요소(무엇/왜-연구 언어/해제 조건/지금 가능한 것)를 모든 차단 순간에 적용 |
 | FR-I9 | PROJECT_INIT 시 13단계 폴더+정적 README+`.gitignore`(materials·desk)를 사전 생성하고, 상태 표기는 PROGRESS.md 단일화 |
 | FR-I10 | 표기 언어: 폴더·파일명·표·피겨·상태 라벨은 영어, 설명 산문은 한국어 (P-F) |
 
-## 5. FR-W — 12단계 하네스 (상태머신 v3)
+## 5. FR-W — 13단계(12+1: Step 13은 순환·선택) 하네스 (상태머신 v3)
 
 | ID | 요구사항 |
 |----|---------|
 | FR-W1 | 12단계 워크플로우 + Step 13(Revision Loop, 순환 가능한 유일한 단계) |
 | FR-W2 | step status에 `imported` 추가 (pending/in_progress/completed/skipped/blocked/imported) |
-| FR-W3 | 진입 조건을 "선행 step 완료"가 아닌 "필요 아티팩트 존재·유효"로 판정 (artifact DAG). 12단계 순서는 기본 경로일 뿐 |
+| FR-W3 | 진입 조건을 "선행 step 완료"가 아닌 "필요 아티팩트 존재·유효"로 판정 (artifact DAG). 13단계(12+1: Step 13은 순환·선택) 좌표는 기본 경로일 뿐 |
 | FR-W4 | 중간 진입 시 하류 자산에서 상류 아티팩트를 역추출(reverse-fill)하고 draft(`imported(unverified)`)로 등록 |
 | FR-W5 | Intake Gate: 역추출 draft 일괄 확인 + 건너뛴 gate 소급 처리(`retroactive: true`). 단 real-data gate 3종(feasibility/protocol/qc)은 개별 확인 유지 |
 | FR-W6 | gate ID를 순번이 아닌 의미 기반으로 재정의 (`gate.go-no-go`, `gate.novelty`, `gate.endpoint`, `gate.feasibility`, `gate.protocol`, `gate.qc`, `gate.results`, `gate.manuscript`) |
@@ -141,7 +141,7 @@ research/
 
 | ID | 요구사항 |
 |----|---------|
-| NFR-1 | 오프라인(원격 MCP 없이) 12단계 완주 가능 |
+| NFR-1 | 오프라인(원격 MCP 없이) 13단계(12+1: Step 13은 순환·선택) 워크플로우 이용 가능 |
 | NFR-2 | PHI 로컬 불변: 어떤 기능도 raw 데이터를 외부 전송하지 않음 |
 | NFR-3 | 한국어/영어 대화 지원 (유저 언어 추종) |
 | NFR-4 | 상태 파일은 사람이 읽을 수 있는 JSON/JSONL/MD — 벤더 락인 없음 (이탈 시에도 자산은 유저 것) |

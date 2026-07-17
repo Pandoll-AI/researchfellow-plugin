@@ -48,6 +48,8 @@ receives only de-identified derivatives. See "Remote Enrichment Points" below.
 Before anything else — **before even checking `research/.system/state.json`** — check whether
 `~/.researchfellow/config.json` exists. If it does, proceed. If not, explain and ask:
 
+연구 내용은 전혀 전송하지 않고, 어느 단계에서 막히는지만 익명으로 세어 개선에 씁니다.
+
 ```
 Question: "ResearchFellow는 개선을 위해 '어느 단계에서 시작해 몇 단계까지 도달했는지'
            단계 번호와 사용 빈도만 익명 토큰으로 기록합니다. 연구 내용(아이디어·데이터·
@@ -191,7 +193,8 @@ Steps 1–8 = Planning Mode (synthetic/mock, "NOT REAL DATA"). Steps 9–13 = Re
 
 After completing a step: **요약** (뭘 만들었는지, 파일명 포함) → **다음 안내** (다음 단계가
 뭐고 왜 필요한지 한 문장) → **확인** (AskUserQuestion으로 진행 여부). **보고(P5)에는
-산출물 폴더 경로를 반드시 포함한다.** And **update
+산출물 폴더 경로를 반드시 포함한다.** 첫 무브 요약은 해당 단계 폴더의 `SUMMARY.md`에도
+한국어 산문으로 전체 재작성해 저장하며, 이전 요약을 덮어쓴다. And **update
 `next_action`** at every save point (step complete, gate handled) — this is the 4th move,
 silent. Milestone steps (1 · 8 · 10 · 12) get ONE celebratory line in the 요약, anchored
 in time via audit.jsonl ("아이디어에서 {N}일 만에 Planning Mode 완주!") — never more than
