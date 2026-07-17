@@ -644,9 +644,15 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
 
     if (state is not None and check_real_data_gates is not None
             and detect_schema is not None and detect_schema(state)[0] in ("v2", "v3")):
-        ok, missing = check_real_data_gates(state)
+        # Last physical line of defence: re-runs do_validate via check_real_data_gates
+        # and also requires on-disk qc_report when project_dir is provided.
+        ok, missing = check_real_data_gates(state, project_dir)
         if not ok:
-            print(f"ERROR: Missing required real-data gate approvals: {missing}", file=sys.stderr)
+            if missing == ["state_integrity"] or "state_integrity" in missing:
+                print("ERROR: State integrity violations block real analysis. "
+                      "Run state_tool.py validate and repair before retrying.", file=sys.stderr)
+            else:
+                print(f"ERROR: Missing required real-data gate approvals: {missing}", file=sys.stderr)
             sys.exit(1)
     elif os.path.exists(gates_path):
         try:
@@ -668,19 +674,33 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
               "Real analysis requires gate.feasibility, gate.protocol and gate.qc approvals.", file=sys.stderr)
         sys.exit(1)
 
-    # Check QC
+    # Check QC — fail-closed: missing file, unreadable file, missing has_critical
+    # key (legacy reports), or explicit has_critical:true all block.
     qc_path = (resolve_qc_report_path(project_dir) if resolve_qc_report_path
                else os.path.join(project_dir, "qc-report.json"))
-    if os.path.exists(qc_path):
-        try:
-            with open(qc_path) as f:
-                qc = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            print("ERROR: qc-report.json exists but is unreadable. Resolve before real analysis.", file=sys.stderr)
-            sys.exit(1)
-        if qc.get("has_critical"):
-            print("ERROR: QC has critical flags. Resolve before running real analysis.", file=sys.stderr)
-            sys.exit(1)
+    if not os.path.exists(qc_path):
+        print("ERROR: QC report not found. Run QC and produce qc-report.json "
+              "with has_critical:false before real analysis.", file=sys.stderr)
+        sys.exit(1)
+    try:
+        with open(qc_path) as f:
+            qc = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        print("ERROR: qc-report.json exists but is unreadable. Resolve before real analysis.", file=sys.stderr)
+        sys.exit(1)
+    if "has_critical" not in qc:
+        print("ERROR: QC report is missing required has_critical key "
+              "(legacy report shape). Re-run QC before real analysis.", file=sys.stderr)
+        sys.exit(1)
+    # Explicit boolean False only — null/0/""/non-bool must not fail-open.
+    has_critical = qc.get("has_critical")
+    if has_critical is True:
+        print("ERROR: QC has critical flags. Resolve before running real analysis.", file=sys.stderr)
+        sys.exit(1)
+    if has_critical is not False:
+        print("ERROR: QC report has invalid/ambiguous has_critical value "
+              f"({has_critical!r}); require explicit boolean false.", file=sys.stderr)
+        sys.exit(1)
 
     counts, glm_fit, cox_fit = _load_and_fit(data_path)
 

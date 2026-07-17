@@ -19,8 +19,30 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime
-from typing import Any, Dict, List
+from collections import Counter, defaultdict
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+
+# guardrails.md — Missing primary exposure/outcome > 50% is a QC critical flag.
+MISSING_CRITICAL_RATE = 0.5
+
+# Convention column names when SAP/variables required-field list is not supplied.
+DEFAULT_EXPOSURE_COLUMNS = ("exposure", "exposed", "treatment", "tx")
+DEFAULT_OUTCOME_COLUMNS = ("outcome", "event", "outcome_event")
+
+# Date parse candidates, tried in order for unambiguous formats.
+# ISO / non-padded YYYY-M-D first (Python %m/%d accept non-zero-padded values).
+_ISO_DATE_FORMATS = ("%Y-%m-%d", "%Y/%m/%d")
+
+# Ambiguity policy for slash-separated numeric dates (MM/DD/YYYY vs DD/MM/YYYY):
+# When both formats parse to *different* calendar dates, treat the value as
+# unparseable → critical finding (no silent preference). When both formats yield
+# the same date (e.g. 05/05/2024), accept it. Prefer explicit ISO in source data.
+DATE_AMBIGUITY_POLICY = (
+    "ambiguous_slash_dates_are_critical: if MM/DD/YYYY and DD/MM/YYYY both parse "
+    "to different dates, treat as parse failure (blocking); identical results accepted"
+)
 
 
 def _load_data(data_path: str) -> tuple[list[dict], str]:
@@ -43,40 +65,150 @@ def _load_data(data_path: str) -> tuple[list[dict], str]:
         sys.exit(1)
 
 
+def _parse_date(value: Any) -> Tuple[Optional[date], Optional[str]]:
+    """Parse a date value. Returns (date, error) where error is None on success.
+
+    error values:
+      - "unparseable": no supported format matched
+      - "ambiguous": both MDY and DMY parse to different dates (see DATE_AMBIGUITY_POLICY)
+    """
+    if value is None or value == "":
+        return None, None
+    if isinstance(value, datetime):
+        return value.date(), None
+    if isinstance(value, date):
+        return value, None
+
+    text = str(value).strip()
+    if not text:
+        return None, None
+
+    for fmt in _ISO_DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).date(), None
+        except ValueError:
+            pass
+
+    mdy: Optional[date] = None
+    dmy: Optional[date] = None
+    try:
+        mdy = datetime.strptime(text, "%m/%d/%Y").date()
+    except ValueError:
+        pass
+    try:
+        dmy = datetime.strptime(text, "%d/%m/%Y").date()
+    except ValueError:
+        pass
+
+    if mdy is not None and dmy is not None:
+        if mdy == dmy:
+            return mdy, None
+        # Deterministic policy: do not guess — critical parse failure.
+        return None, "ambiguous"
+    if mdy is not None:
+        return mdy, None
+    if dmy is not None:
+        return dmy, None
+
+    return None, "unparseable"
+
+
 def check_temporal_order(records: list[dict]) -> dict:
-    """Check that outcome dates are after index dates."""
+    """Check that outcome dates are after index dates (parsed, not string-compared)."""
     violations = 0
     checked = 0
-    for i, rec in enumerate(records):
-        index_date = rec.get("index_date")
-        outcome_date = rec.get("outcome_date")
-        if index_date and outcome_date:
-            checked += 1
-            if str(outcome_date) < str(index_date):
-                violations += 1
+    parse_failures = 0
 
+    for rec in records:
+        index_raw = rec.get("index_date")
+        outcome_raw = rec.get("outcome_date")
+        if not index_raw or not outcome_raw:
+            continue
+
+        index_date, index_err = _parse_date(index_raw)
+        outcome_date, outcome_err = _parse_date(outcome_raw)
+
+        if index_err or outcome_err or index_date is None or outcome_date is None:
+            # Parse failure is blocking (critical) — never a quiet pass.
+            parse_failures += 1
+            continue
+
+        checked += 1
+        if outcome_date < index_date:
+            violations += 1
+
+    is_critical = violations > 0 or parse_failures > 0
     return {
         "check": "temporal_order",
         "description": "Outcome date must be after index date",
         "checked": checked,
         "violations": violations,
-        "critical": violations > 0,
-        "severity": "critical" if violations > 0 else "pass",
+        "parse_failures": parse_failures,
+        "date_ambiguity_policy": DATE_AMBIGUITY_POLICY,
+        "critical": is_critical,
+        "severity": "critical" if is_critical else "pass",
     }
 
 
-def check_missing_data(records: list[dict]) -> dict:
-    """Check missing data rates per column."""
-    if not records:
-        return {"check": "missing_data", "columns": {}, "severity": "pass", "critical": False}
+def _resolve_required_fields(
+    records: list[dict],
+    required_fields: Optional[Sequence[str]] = None,
+) -> List[str]:
+    """Return the primary exposure/outcome columns to enforce missing-data criticals.
 
-    columns = set()
+    Prefer an explicit SAP/variables list. Otherwise fall back to the first
+    convention column name present in the data (or the canonical name if absent,
+    so an all-missing renamed column can still surface when named conventionally).
+    """
+    if required_fields:
+        return list(required_fields)
+
+    present: set = set()
+    for rec in records:
+        present.update(rec.keys())
+
+    resolved: List[str] = []
+    for group in (DEFAULT_EXPOSURE_COLUMNS, DEFAULT_OUTCOME_COLUMNS):
+        found = next((c for c in group if c in present), None)
+        if found is not None:
+            resolved.append(found)
+        else:
+            # No convention column present — skip group (cannot rate a missing col).
+            pass
+    return resolved
+
+
+def check_missing_data(
+    records: list[dict],
+    required_fields: Optional[Sequence[str]] = None,
+) -> dict:
+    """Check missing data rates per column.
+
+    Required primary fields (exposure/outcome) with missing rate
+    strictly greater than MISSING_CRITICAL_RATE (50%, guardrails.md) are critical.
+    Other columns above 30% remain warnings only.
+    """
+    if not records:
+        return {
+            "check": "missing_data",
+            "columns": {},
+            "severity": "pass",
+            "critical": False,
+            "critical_missing_columns": [],
+            "required_fields": [],
+            "missing_critical_rate": MISSING_CRITICAL_RATE,
+        }
+
+    columns: set = set()
     for rec in records:
         columns.update(rec.keys())
 
-    missing_rates = {}
+    missing_rates: Dict[str, dict] = {}
     n = len(records)
-    high_missing = []
+    high_missing: List[str] = []
+    critical_missing: List[str] = []
+    required = _resolve_required_fields(records, required_fields)
+    required_set = set(required)
 
     for col in sorted(columns):
         missing = sum(1 for rec in records if rec.get(col) is None or rec.get(col) == "")
@@ -84,30 +216,72 @@ def check_missing_data(records: list[dict]) -> dict:
         missing_rates[col] = {"missing": missing, "total": n, "rate": round(rate, 4)}
         if rate > 0.3:
             high_missing.append(col)
+        if col in required_set and rate > MISSING_CRITICAL_RATE:
+            critical_missing.append(col)
+
+    # Required fields listed but absent from every row still count as 100% missing.
+    for col in required:
+        if col not in missing_rates:
+            missing_rates[col] = {"missing": n, "total": n, "rate": 1.0}
+            critical_missing.append(col)
+            high_missing.append(col)
+
+    is_critical = len(critical_missing) > 0
+    if is_critical:
+        severity = "critical"
+    elif high_missing:
+        severity = "warning"
+    else:
+        severity = "pass"
 
     return {
         "check": "missing_data",
         "columns": missing_rates,
         "high_missing_columns": high_missing,
-        "severity": "warning" if high_missing else "pass",
-        "critical": False,
+        "critical_missing_columns": critical_missing,
+        "required_fields": required,
+        "missing_critical_rate": MISSING_CRITICAL_RATE,
+        "severity": severity,
+        "critical": is_critical,
     }
 
 
-def check_duplicates(records: list[dict]) -> dict:
-    """Check for duplicate records."""
-    if not records:
-        return {"check": "duplicates", "total": 0, "duplicates": 0, "severity": "pass", "critical": False}
-
-    # Use patient_id or id field for dedup
-    id_field = None
-    for field in ["patient_id", "id", "subject_id", "record_id"]:
+def _find_id_field(records: list[dict]) -> Optional[str]:
+    for field in ("patient_id", "id", "subject_id", "record_id"):
         if records[0].get(field) is not None:
-            id_field = field
-            break
+            return field
+    return None
+
+
+def _find_outcome_field(records: list[dict]) -> Optional[str]:
+    for field in DEFAULT_OUTCOME_COLUMNS:
+        if field in records[0]:
+            return field
+    return None
+
+
+def check_duplicates(records: list[dict]) -> dict:
+    """Check for duplicate records and same-ID conflicting outcomes.
+
+    Plain ID duplicates remain a warning. Identical id_field values with
+    disagreeing outcome values are critical (guardrails.md).
+    """
+    if not records:
+        return {
+            "check": "duplicates",
+            "total": 0,
+            "duplicates": 0,
+            "conflicting_outcomes": 0,
+            "severity": "pass",
+            "critical": False,
+        }
+
+    id_field = _find_id_field(records)
+    outcome_field = _find_outcome_field(records)
+    conflicting = 0
 
     if id_field is None:
-        seen = set()
+        seen: set = set()
         dups = 0
         for rec in records:
             key = json.dumps(rec, sort_keys=True, default=str)
@@ -115,18 +289,36 @@ def check_duplicates(records: list[dict]) -> dict:
                 dups += 1
             seen.add(key)
     else:
-        from collections import Counter
         ids = [rec.get(id_field) for rec in records]
         counts = Counter(ids)
         dups = sum(1 for c in counts.values() if c > 1)
 
+        if outcome_field is not None:
+            by_id: Dict[Any, set] = defaultdict(set)
+            for rec in records:
+                rid = rec.get(id_field)
+                if rid is None:
+                    continue
+                by_id[rid].add(json.dumps(rec.get(outcome_field), default=str))
+            conflicting = sum(1 for outcomes in by_id.values() if len(outcomes) > 1)
+
+    is_critical = conflicting > 0
+    if is_critical:
+        severity = "critical"
+    elif dups > 0:
+        severity = "warning"
+    else:
+        severity = "pass"
+
     return {
         "check": "duplicates",
         "id_field": id_field,
+        "outcome_field": outcome_field,
         "total": len(records),
         "duplicates": dups,
-        "severity": "warning" if dups > 0 else "pass",
-        "critical": False,
+        "conflicting_outcomes": conflicting,
+        "severity": severity,
+        "critical": is_critical,
     }
 
 
@@ -200,10 +392,18 @@ def check_event_counts(records: list[dict]) -> dict:
     total = len(records)
 
     warnings = []
+    is_critical = events < 5
     if events < 10:
         warnings.append(f"Very low event count ({events}). Consider simpler models.")
     if total > 0 and events / total < 0.01:
         warnings.append(f"Event rate very low ({events}/{total} = {events/total:.4f})")
+
+    if is_critical:
+        severity = "critical"
+    elif warnings:
+        severity = "warning"
+    else:
+        severity = "pass"
 
     return {
         "check": "event_counts",
@@ -212,12 +412,12 @@ def check_event_counts(records: list[dict]) -> dict:
         "events": events,
         "event_rate": round(events / total, 4) if total > 0 else 0,
         "warnings": warnings,
-        "severity": "warning" if warnings else "pass",
-        "critical": events < 5,
+        "severity": severity,
+        "critical": is_critical,
     }
 
 
-def run_qc(data_path: str) -> dict:
+def run_qc(data_path: str, required_fields: Optional[Sequence[str]] = None) -> dict:
     """Run all QC checks and return report."""
     records, fmt = _load_data(data_path)
 
@@ -234,7 +434,7 @@ def run_qc(data_path: str) -> dict:
 
     checks = [
         check_temporal_order(records),
-        check_missing_data(records),
+        check_missing_data(records, required_fields=required_fields),
         check_duplicates(records),
         check_distributions(records),
         check_event_counts(records),

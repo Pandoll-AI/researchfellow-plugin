@@ -181,9 +181,9 @@ V1_GATE_MAP: Dict[str, str] = {
 # The three hard real-data gates (FR-G4). Legacy ids in comment for reference.
 REAL_DATA_GATES: List[str] = ["gate.feasibility", "gate.protocol", "gate.qc"]  # v1: 4, 5, 9
 
-# Candidate on-disk filenames per artifact — used ONLY for v1 reconstruction,
-# which has no artifacts registry (see reconstruct rule in state-machine.md).
-# Paths are relative to --project-dir.
+# Candidate on-disk filenames per artifact — used for v1 reconstruction and for
+# file-backed real-data artifact checks (see FILE_BACKED_REAL_DATA_ARTIFACTS).
+# Paths are relative to --project-dir; both legacy and v3 layouts are listed.
 ARTIFACT_FILES: Dict[str, List[str]] = {
     "idea": ["idea.json", "pico.json"],
     "literature": ["literature.json", "search-results.json", "literature"],
@@ -192,15 +192,29 @@ ARTIFACT_FILES: Dict[str, List[str]] = {
     "protocol": ["protocol.md"],
     "sap": ["sap.md"],
     "shells": ["shells.md", "table-shells.md", "tables"],
-    "synthetic_results": [os.path.join("analysis", "synthetic", "results.json")],
+    "synthetic_results": [
+        os.path.join("analysis", "synthetic", "results.json"),
+        os.path.join("08_dry_run", "synthetic_results", "results.json"),
+    ],
     "extraction_plan": ["extraction-plan.md", "extraction_plan.md"],
-    "qc_report": ["qc-report.json"],
-    "real_results": [os.path.join("analysis", "real", "results.json")],
+    "qc_report": [
+        "qc-report.json",
+        os.path.join("09_data_qc", "qc-report.json"),
+    ],
+    "real_results": [
+        os.path.join("analysis", "real", "results.json"),
+        os.path.join("10_analysis", "real_results", "results.json"),
+    ],
     "manuscript": ["manuscript.md"],
     "checklist": ["checklist.json", "checklist.md"],
     "submission_package": ["submission", "submission-package"],
     "revision": ["revision"],
 }
+
+# Real-data analysis outputs: registry "valid" alone is insufficient — the
+# produced file must also exist on disk. Other artifacts keep v2 registry-only
+# trust (narrow scope to minimise regression).
+FILE_BACKED_REAL_DATA_ARTIFACTS = frozenset({"qc_report", "real_results"})
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +312,11 @@ def _gate_status(state: dict, schema: str, semantic_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _artifact_validity_v2(state: dict, artifact: str) -> str:
-    """Return 'valid' | 'draft' | 'invalidated' | 'absent' from the registry."""
+    """Return 'valid' | 'draft' | 'invalidated' | 'absent' from the registry.
+
+    Registry-only by design for v2; callers that need file-backed real-data
+    checks compose this with `_artifact_file_exists` via `artifact_validity`.
+    """
     entry = (state.get("artifacts", {}) or {}).get(artifact)
     if not entry:
         return "absent"
@@ -334,20 +352,34 @@ def _artifact_validity_v1(state: dict, project_dir: str, artifact: str) -> str:
 def artifact_validity(state: dict, project_dir: str, schema: str, artifact: str) -> str:
     if schema == "v1":
         return _artifact_validity_v1(state, project_dir, artifact)
-    return _artifact_validity_v2(state, artifact)
+    validity = _artifact_validity_v2(state, artifact)
+    # Real-data artifacts: registry valid ∧ on-disk file (reuse v1 helper).
+    if validity == "valid" and artifact in FILE_BACKED_REAL_DATA_ARTIFACTS:
+        if not _artifact_file_exists(project_dir, artifact):
+            return "absent"
+    return validity
 
 
 # ---------------------------------------------------------------------------
 # check_real_data_gates — shared with analysis_runner.py (FR-G4 last line)
 # ---------------------------------------------------------------------------
 
-def check_real_data_gates(state: dict) -> Tuple[bool, List[str]]:
+def check_real_data_gates(state: dict, project_dir: str = "") -> Tuple[bool, List[str]]:
     """Return (ok, missing) for the three hard real-data gates.
 
     Works on both v2 (semantic ids) and v1 (numeric keys 4/5/9). `missing` is a
-    list of semantic gate ids not in 'approved' status. analysis_runner.py imports
-    and calls this so an LLM cannot bypass the gate by editing prose.
+    list of semantic gate ids not in 'approved' status (or the synthetic marker
+    ``state_integrity`` when do_validate finds violations). analysis_runner.py
+    imports and calls this so an LLM cannot bypass the gate by editing prose.
+
+    Pure addition on the real-data path: do_validate runs first and fail-closes
+    on any state-integrity violation even when all three gates are approved.
     """
+    # Fail-closed on state integrity before trusting gate approvals.
+    _report, vcode = do_validate(state, project_dir or "")
+    if vcode != 0:
+        return False, ["state_integrity"]
+
     schema, _ = detect_schema(state)
     if schema not in ("v1", "v2", "v3"):
         return False, list(REAL_DATA_GATES)
@@ -355,6 +387,13 @@ def check_real_data_gates(state: dict) -> Tuple[bool, List[str]]:
     for gate in REAL_DATA_GATES:
         if _gate_status(state, schema, gate) != "approved":
             missing.append(gate)
+
+    # Real-analysis also requires an on-disk QC report when project_dir is known
+    # (registry-valid alone is insufficient — see FILE_BACKED_REAL_DATA_ARTIFACTS).
+    if project_dir and artifact_validity(state, project_dir, schema, "qc_report") != "valid":
+        if "qc_report" not in missing:
+            missing.append("qc_report")
+
     return (len(missing) == 0, missing)
 
 
@@ -384,9 +423,11 @@ def do_validate(state: dict, project_dir: str) -> Tuple[dict, int]:
     steps = state.get("steps", {}) or {}
 
     # Invariant: hard gates may never be retroactive.
+    # Prefer canonical GATE_TYPE over the stored type so a forged type:"soft"
+    # cannot bypass the ban on retroactive hard gates.
     for key, info in gates.items():
         semantic = V1_GATE_MAP.get(key, key) if schema == "v1" else key
-        gtype = info.get("type") or GATE_TYPE.get(semantic)
+        gtype = GATE_TYPE.get(semantic) or info.get("type")
         if gtype == "hard" and info.get("retroactive") is True:
             violations.append({
                 "invariant": "hard_gate_not_retroactive",
@@ -435,6 +476,22 @@ def do_can_enter(state: dict, project_dir: str, step: int) -> Tuple[dict, int]:
             "step": step, "schema": schema, "allowed": False,
             "error": "state schema is invalid or unsupported; run validate and repair it",
             "missing_artifacts": [], "draft_artifacts": [], "missing_hard_gates": [], "warnings": [],
+        }, 2
+
+    # Fail-closed on state integrity before trusting gates/artifacts.
+    vreport, vcode = do_validate(state, project_dir)
+    if vcode != 0:
+        return {
+            "step": step,
+            "step_name": STEP_NAMES.get(step),
+            "schema": schema,
+            "allowed": False,
+            "error": "state integrity violations; run validate and repair them",
+            "violations": vreport.get("violations", []),
+            "missing_artifacts": [],
+            "draft_artifacts": [],
+            "missing_hard_gates": [],
+            "warnings": [],
         }, 2
 
     if step not in DAG:
@@ -493,13 +550,26 @@ def do_can_enter(state: dict, project_dir: str, step: int) -> Tuple[dict, int]:
 # Subcommand: gate-check
 # ---------------------------------------------------------------------------
 
-def do_gate_check(state: dict, for_what: str) -> Tuple[dict, int]:
+def do_gate_check(state: dict, for_what: str, project_dir: str = "") -> Tuple[dict, int]:
     schema, _ = detect_schema(state)
     if schema not in ("v1", "v2", "v3"):
         return {"for": for_what, "schema": schema, "ok": False,
                 "error": "state schema is invalid or unsupported; run validate and repair it"}, 2
+
+    # Fail-closed on state integrity before trusting gate approvals.
+    vreport, vcode = do_validate(state, project_dir)
+    if vcode != 0:
+        return {
+            "for": for_what,
+            "schema": schema,
+            "ok": False,
+            "error": "state integrity violations; run validate and repair them",
+            "violations": vreport.get("violations", []),
+            "missing": ["state_integrity"],
+        }, 2
+
     if for_what == "real-analysis":
-        ok, missing = check_real_data_gates(state)
+        ok, missing = check_real_data_gates(state, project_dir)
         report = {"for": for_what, "schema": schema, "ok": ok, "missing": missing}
         return report, (0 if ok else 2)
 
@@ -581,7 +651,7 @@ def main() -> None:
     elif args.command == "can-enter":
         report, code = do_can_enter(state, args.project_dir, args.step)
     elif args.command == "gate-check":
-        report, code = do_gate_check(state, args.for_what)
+        report, code = do_gate_check(state, args.for_what, args.project_dir)
     elif args.command == "cascade":
         report, code = do_cascade(state, args.changed)
     else:  # pragma: no cover - argparse enforces choices
