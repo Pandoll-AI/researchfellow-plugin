@@ -198,13 +198,14 @@ function renderInterview() {
 }
 
 /* ---------------- Dashboard ---------------- */
-const STATUS_LABEL = { pending: "대기", in_progress: "진행 중", completed: "완료",
-  imported: "가져옴", invalidated: "재작업 필요", skipped: "건너뜀", blocked: "잠김" };
+const STATUS_LABEL = { pending: "pending", in_progress: "in progress", completed: "completed",
+  imported: "imported", invalidated: "invalidated", skipped: "skipped", blocked: "blocked" };
 
 function renderDashboard() {
   const header = el("div", {},
     el("div", { class: "brand" }, "ResearchFellow Desk"),
     el("h1", {}, P.project_name || "연구 프로젝트"),
+    P.research_card ? el("p", { class: "sub" }, P.research_card) : null,
     el("p", { class: "sub" },
       (P.entry_label ? P.entry_label + " · " : "") + "완료 " + (P.completed_count ?? "?") + "/12" +
       (P.rehearsal && P.rehearsal.active ? " · 연습 모드 데이터 있음" : "")));

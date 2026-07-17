@@ -5,6 +5,31 @@
 > contradictions between materials are *not* judged here — they are events for Layer 3.
 > Originals are immutable; classification never edits them.
 
+## Receipt mode — collection loop (P1)
+
+자료가 도착할 때는 먼저 접수 목록에만 적재합니다. 이 모드에서는 스캔·PHI 스크리닝·
+분류·역추출을 하지 않습니다. 파일명과 확장자, 또는 붙여넣은 식별자만으로 rule hint 수준의
+잠정 이해를 말하며, 내용에 관한 과잉 추론을 하지 않습니다.
+
+각 도착 자료에는 다음처럼 한 줄로 응답합니다.
+
+> "`{받은 것}`을 받았습니다. 파일명·확장자로 보면 `{잠정 역할}`로 보입니다. 더 주실 것이 있으신가요?"
+
+이 문장은 분류 판정이나 추가 정보 요구가 아닌 접수 확인입니다. 따라서 FR-M9의
+파일별 분류 질문 억제와 충돌하지 않습니다.
+
+유저가 "이게 다예요"처럼 종료를 선언하면, 먼저 P3 작업공표를 한 줄로 합니다. 무엇을
+일괄 스캔하는지, 결과가 `.research/scan-report.json`과 `.research/materials/`에 생긴다는 점,
+대략 소요를 함께 알립니다. 파일·디렉토리만 `--input` 반복 인자로 넘기고, 붙여넣은
+PMID/DOI/URL은 쉼표로 모아 하나의 `--paste-refs` 값으로 넘깁니다. 식별자를 `--input`으로
+넘기지 않습니다. 이어서 접수 목록 전체를 **한 번만** 배치 스캔하고, 아래 파이프라인의
+Stage 2 분류와 브리핑으로 합류합니다.
+
+분류나 브리핑 뒤에 자료가 더 도착하면 새 자료를 미니 인테이크로 접수한 뒤 종료 선언
+시 재스캔하여 기존 흐름에 흡수합니다. `version_groups`는 그 미니 배치 안에서만 계산됩니다.
+배치 간 중복·버전 lineage는 Stage 2가 기존 `materials.json` 레지스트리와 대조하여
+`lineage_hints`로 판정합니다.
+
 ## Pipeline pseudo-flow
 
 ```
@@ -140,8 +165,10 @@ material into one of these semantic roles. Discriminators are 1–2 lines each.
 ## Stage 2 — LLM batch classification prompt contract
 
 **Context to assemble:** ① the role ontology above ② the entry-point prior table below
-③ the current PICO (if any). **Input:** scan-report excerpts for the `llm_batch_needed`
-set + (for PDFs) the first 1–2 pages you Read. **Batch ≤ 10 materials per call.**
+③ the current PICO (if any) ④ existing `materials.json` summary of `(material_id, role,
+filename)` for cross-batch lineage comparison. **Input:** scan-report excerpts for the
+`llm_batch_needed` set + (for PDFs) the first 1–2 pages you Read. **Batch ≤ 10 materials
+per call.**
 
 ### Entry-point priors (FR-M5)
 
@@ -192,6 +219,9 @@ and appends `MATERIAL_RECLASSIFIED` (cascade per state-machine.md).
 
 Render a collapsible inventory by family (confirmed = ✓ one-liner; medium/low + version
 representatives gathered into one batch confirm row; questions last), then discuss:
+
+`research_card`가 있으면 브리핑 첫 줄에 한 문장으로 보여 줍니다. 값이 없거나 `null`이면
+조용히 생략합니다.
 
 ```
 받은 자료 9개를 정리했습니다.

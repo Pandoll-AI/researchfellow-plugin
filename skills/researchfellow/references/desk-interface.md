@@ -74,7 +74,7 @@ phi_detect before writing to disk (fail-closed: engine unavailable → withheld)
 
 ```json
 {
-  "project_name": "…", "entry_label": "…", "completed_count": 4,
+  "project_name": "…", "research_card": null, "entry_label": "…", "completed_count": 4,
   "steps": [ {"n": 1, "name": "PICO Structuring", "status": "completed|in_progress|pending|imported|invalidated|skipped|blocked", "blocked_reason": "…"} ],
   "next_action": {"label": "…", "step": 6},
   "blockers": ["…"],
@@ -88,6 +88,7 @@ phi_detect before writing to disk (fail-closed: engine unavailable → withheld)
 }
 ```
 
+- `research_card`가 있으면 헤더 개막 문장으로 렌더하고, 없거나 `null`이면 생략합니다.
 - Build `steps`/`blockers` from a FRESH `state_tool.py can-enter`/`validate`
   run, not a stale snapshot.
 - Answers: `{action: "continue|start_rehearsal|new_entry|new_project", compliance: {id: bool}}`.

@@ -50,7 +50,22 @@
 | FR-M10 | PHI 스크리닝: tabular에서 이름·주민번호·연락처 패턴 규칙 스캔 → 감지 시 가명화 권장 경고, **값은 로그에 남기지 않음** |
 | FR-M11 | analysis_output 감지 시 Intake Gate에서 provenance 문진(데이터 실재·QC 수행·코드 존재) 강제, `PROVENANCE_ATTESTED` 기록 |
 
-## 4. FR-W — 12단계 하네스 (상태머신 v2)
+## 4. FR-I — 인터랙션·가시성
+
+| ID | 요구사항 |
+|----|---------|
+| FR-I1 | 모든 유저 접점은 인터랙션 프리미티브 7종(P1–P7)으로 기술된다. 정본: `references/interaction-model.md` |
+| FR-I2 | `research_card`: state.json 필드. PICO 확정·변경 시 갱신하고, 주요 접점(브리핑·게이트·재개·현황)의 개막 문장으로 사용 |
+| FR-I3 | 재진술 출처 3분류(전달받음/추론+근거/불확실). 역추출 확인 화면은 `_provenance`를 자료명·위치로 노출 |
+| FR-I4 | 수집 루프: 접수(적재+1줄 이해+"더 있으신가요?") → 종료 선언 → 배치 스캔 1회 → 브리핑 |
+| FR-I5 | 작업공표: 자율 작업 전 1줄(무엇/결과 위치/대략 소요 — 기존 duration 표 재사용) |
+| FR-I6 | 보고(P5)에는 산출물 폴더 경로 필수. 단계 완료 시 `SUMMARY.md` 영속화 **(SUMMARY.md는 Phase 4; 현재 미구현)** |
+| FR-I7 | `PROGRESS.md`·`RESEARCH_LOG.md`는 progress_renderer가 결정론적으로 전체 재생성하고, 모든 저장 지점에서 비차단으로 실행 **(Phase 3; 현재 미구현)** |
+| FR-I8 | 차단설명 4요소(무엇/왜-연구 언어/해제 조건/지금 가능한 것)를 모든 차단 순간에 적용 |
+| FR-I9 | PROJECT_INIT 시 13단계 폴더+정적 README+`.gitignore`(materials·desk)를 사전 생성하고, 상태 표기는 PROGRESS.md 단일화 **(Phase 2; 현재 미구현)** |
+| FR-I10 | 표기 언어: 폴더·파일명·표·피겨·상태 라벨은 영어, 설명 산문은 한국어 (P-F) |
+
+## 5. FR-W — 12단계 하네스 (상태머신 v2)
 
 | ID | 요구사항 |
 |----|---------|
@@ -64,7 +79,7 @@
 | FR-W8 | 상류 아티팩트 재실행·gate 번복 시 기존 invalidation cascade 규칙 유지 |
 | FR-W9 | 모든 상태 전이는 `audit.jsonl`에 append-only 기록 (기존 이벤트 + `ARTIFACT_IMPORTED`, `GATE_RETROACTIVE`, `MATERIAL_RECLASSIFIED`) |
 
-## 5. FR-T — 로컬 도구 (scripts)
+## 6. FR-T — 로컬 도구 (scripts)
 
 | ID | 도구 | 요구사항 |
 |----|------|---------|
@@ -76,7 +91,7 @@
 | FR-T6 | `phi_screener` (신규) | FR-M10의 규칙 스캔. 독립 실행 가능 (분류와 분리) |
 | FR-T7 | 모든 스크립트는 stdlib 우선. 네트워크 접근은 `pubmed_search`(문헌 검색)와 `telemetry`(동의 기반 퍼널 카운터, fire-and-forget — FR-P)만. 그 외 오프라인 동작 |
 
-## 6. FR-G — 가드레일 (전부 무료)
+## 7. FR-G — 가드레일 (전부 무료)
 
 기존 guardrails.md 승계 + 다음 명시:
 
@@ -88,7 +103,7 @@
 | FR-G4 | hard gate 미승인·QC critical 시 real 분석 차단 |
 | FR-G5 | imported 자산 기반 주장에는 provenance 상태를 원고 limitation에 자동 반영 |
 
-## 7. FR-X — 원격 MCP 통합
+## 8. FR-X — 원격 MCP 통합
 
 | ID | 요구사항 |
 |----|---------|
@@ -98,7 +113,7 @@
 | FR-X4 | 원격 도구에 전송하는 입력은 비식별 파생물만: PICO, 스키마(컬럼명·타입), 집계 통계, 텍스트 초안. **raw 데이터 행 전송 금지** — 전송 전 FR-T6로 확인 |
 | FR-X5 | 원격 서버 불가용 시 해당 기능만 건너뛰고 워크플로우는 계속된다 (오프라인 완주 보장) |
 
-## 7b. FR-P — 프라이버시·텔레메트리 (2026-07-16 신설)
+## 8b. FR-P — 프라이버시·텔레메트리 (2026-07-16 신설)
 
 | ID | 요구사항 |
 |----|---------|
@@ -110,7 +125,7 @@
 | FR-P6 | 설치 단위 상태는 `~/.researchfellow/`(config.json, queue.jsonl) — 프로젝트 단위 `.research/`와 구분되는 유일한 글로벌 상태 |
 | FR-P7 | `state.json.project_id`는 `telemetry.py new-project-id`가 생성한 실제 uuid4 — `project_name`(자유 문자열)은 절대 해시 원본으로 쓰지 않는다 |
 
-## 8. 파일 레이아웃 (유저 프로젝트)
+## 9. 파일 레이아웃 (유저 프로젝트)
 
 ```
 .research/
@@ -124,7 +139,7 @@
 └── audit.jsonl         # 프로젝트 루트가 아닌 .research/ 내부로 이동 (v2 결정)
 ```
 
-## 9. NFR
+## 10. NFR
 
 | ID | 요구사항 |
 |----|---------|
@@ -134,7 +149,7 @@
 | NFR-4 | 상태 파일은 사람이 읽을 수 있는 JSON/JSONL/MD — 벤더 락인 없음 (이탈 시에도 자산은 유저 것) |
 | NFR-5 | 기존 research-bot `.research/` 프로젝트를 마이그레이션 스크립트 없이 인식 (gate 순번→의미 ID 매핑 내장) |
 
-## 10. 포팅 노트
+## 11. 포팅 노트
 
 원형: `~/Projects/research-bot/.research-skill/` (SKILL.md, references 5종, scripts 4종,
 templates 6종). FR-E/FR-M(3층 진입점·분류)이 신규 구현, FR-W는 상태머신 v2 개정,

@@ -28,7 +28,8 @@ Single file (`.research/state.json`, NFR-4). The v1 `gates.json` split is folded
 in. Gate keys are semantic ids; the v1 ordinal is preserved as `legacy_id`.
 
 Top-level fields: `schema_version` (=2), `project_id` (uuid4, telemetry attribution
-only), `project_name`, `created_at`, `entry_point`, `execution_mode`
+only), `project_name`, `research_card` (nullable; PICO 확정·변경 시 갱신, FR-I2),
+`created_at`, `entry_point`, `execution_mode`
 (`planning` | `real_data`), `focus_step`, `next_action`, `steps`, `artifacts`, `gates`,
 `rehearsal`, `blockers`. See `templates/project-init.json` for the empty initializer.
 
@@ -156,6 +157,13 @@ Gate → anchor artifact map (identical to `state_tool.py` `GATE_ANCHOR`):
 ## Intake Gate (FR-W5)
 
 One body with the briefing's "confirm the starting point" agenda:
+
+**Copy order only — the procedure, verdicts, order, and invariants below are unchanged.**
+Before the Batch confirm request, open with the `research_card`, then narrate "자료에서
+제가 읽어낸 그림". Apply the three provenance categories: 전달받음 / 추론 (each
+reverse-filled item exposes its `_provenance` as material name + extraction location) /
+불확실. Only after this understanding statement ask for the batch confirmation
+("맞으면 한 번에 확정, 틀린 항목만 짚어주세요").
 
 1. **Batch confirm** — summarize reverse-filled `draft` artifacts on one screen
    ("confirm all at once, or point out only the wrong items"). On approval:

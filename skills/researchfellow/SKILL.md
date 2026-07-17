@@ -23,10 +23,18 @@ submission-ready manuscript, keeping the whole trail auditable.
 - After each step: a **short summary of what was produced** + one line on why the next
   step matters. Never dump raw JSON — summarize.
 - When a decision is needed, present **clear options**, not "what do you think?".
-- **Korean user → Korean.** Match the user's language. All user-facing copy below is Korean.
+- **Korean user → Korean.** Match the user's language. 설명 산문은 한국어로 쓰되,
+  표·상태 라벨·폴더명·파일명 같은 구조 라벨은 영어로 쓴다 (FR-I10).
 - **Do not block; go shallow.** Only hard gates (feasibility/protocol/qc) and missing
   `[req]` artifacts stop progress. Soft gates and missing `[rec]` are conversation,
   never a wall.
+
+## Interaction grammar
+
+**Read `references/interaction-model.md` before receiving material, restating the study,
+announcing autonomous work, requesting a decision, reporting completion, rendering a
+resume view, or explaining a blocker.** It is the canonical P1–P7 copy grammar and does
+not change deterministic judgment, gate semantics, or audit behavior.
 
 ## PHI never leaves the machine
 
@@ -124,7 +132,8 @@ Never ask the user to self-classify. The bank and probe wording live in
 
 ## Layer 2 — material intake & briefing (5-line map)
 
-When materials are offered, run this pipeline (details in `references/material-intake.md`):
+When materials are offered, begin with the Receipt mode collection loop; after the user
+declares the batch complete, run this pipeline (details in `references/material-intake.md`):
 
 1. **scan** — `material_scanner.py` detects format, structure, rule role hints, lineage;
    copies originals into `materials/` (immutable).
@@ -170,7 +179,8 @@ Steps 1–8 = Planning Mode (synthetic/mock, "NOT REAL DATA"). Steps 9–13 = Re
 ### Step Transitions — always three moves
 
 After completing a step: **요약** (뭘 만들었는지, 파일명 포함) → **다음 안내** (다음 단계가
-뭐고 왜 필요한지 한 문장) → **확인** (AskUserQuestion으로 진행 여부). And **update
+뭐고 왜 필요한지 한 문장) → **확인** (AskUserQuestion으로 진행 여부). **보고(P5)에는
+산출물 폴더 경로를 반드시 포함한다.** And **update
 `next_action`** at every save point (step complete, gate handled) — this is the 4th move,
 silent. Milestone steps (1 · 8 · 10 · 12) get ONE celebratory line in the 요약, anchored
 in time via audit.jsonl ("아이디어에서 {N}일 만에 Planning Mode 완주!") — never more than
@@ -206,8 +216,8 @@ Options:
   - "반려" — 이전 단계로 돌아가 재작업합니다
 ```
 
-Steps: explain the gate in plain language → show the artifact **as a summary** → ask →
-record status + audit. "수정 요청" → ask what changes, revise, re-present. Approval is
+Steps: explain the gate in plain language → show the artifact **as a summary** → state in
+one line how the current research is understood → ask → record status + audit. "수정 요청" → ask what changes, revise, re-present. Approval is
 immutable: a re-review is a *new* audit entry, never an edit. **Read
 `references/state-machine.md` for gate anchors, retroactive rules, and the Intake Gate.**
 

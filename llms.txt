@@ -65,7 +65,7 @@ new manuscript / revise / reviewer response). No configuration is required (DT-3
 ## Key files
 
 - [README.md](README.md): human-facing quickstart (Korean)
-- [REQUIREMENTS.md](REQUIREMENTS.md): requirement spec v0.1 (FR-E/M/W/T/G/X, NFR, DT)
+- [REQUIREMENTS.md](REQUIREMENTS.md): requirement spec v0.1 (FR-E/M/I/W/T/G/X, NFR, DT)
 - [skills/researchfellow/SKILL.md](skills/researchfellow/SKILL.md): router — read first
 - [skills/researchfellow/references/state-machine.md](skills/researchfellow/references/state-machine.md): state.json v2 schema, artifact DAG, gates, invalidation cascade, v1 mapping
 - [skills/researchfellow/references/entry-points.md](skills/researchfellow/references/entry-points.md): 5+1 entry points, S1 clarity rubric, resume view

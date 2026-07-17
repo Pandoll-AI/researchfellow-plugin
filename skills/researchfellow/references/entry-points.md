@@ -147,6 +147,10 @@ Render from `state.json`. If `next_action` is present, use its `label`/`step`. I
 `state_tool can-enter --step N` in ascending order and use the first that returns exit 0
 (or the lowest exit-2 step as the blocked target), labeled from the fixed table below.
 
+Open the render with the one-line `research_card` when `state.json.research_card` exists
+and is not `null`. When it is absent or `null`, omit it quietly; do not raise an error or
+substitute a placeholder.
+
 ### Participation moves (resume is the retention moment — use all four)
 
 1. **Recap** — read the last 3–5 lines of `audit.jsonl`: "지난 세션(N일 전)에
@@ -185,6 +189,7 @@ Step 1 ~15분 · 2 ~20분 · 3 ~20분 · 4 ~15분 · 5 ~30분 · 6 ~30분 · 7 ~
 
 ```
 📋 {project_name}
+   {research_card, when present}
    이어서: {label} (Step {n})
    완료 {x}/12 · 반입 {y}단계
    ⚠ {blocker 요약, 최대 3줄}
