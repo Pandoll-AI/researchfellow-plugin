@@ -4,7 +4,7 @@ description: >-
   ResearchFellow — AI co-researcher for retrospective clinical research.
   13-step workflow (PICO→literature→protocol/SAP→QC→analysis→manuscript→revision).
   Start with /rf (or /researchfellow). Enter at ANY stage: new idea, dataset, half-written draft,
-  or reviewer comments. Tracks progress in .research/. Patient data never leaves
+  or reviewer comments. Tracks progress in research/. Patient data never leaves
   the machine. 후향적 임상연구, 연구 아이디어, 논문 작성, 리뷰어 대응 요청 시 사용.
 ---
 
@@ -45,7 +45,7 @@ receives only de-identified derivatives. See "Remote Enrichment Points" below.
 
 ## Telemetry consent gate (runs FIRST, before any routing)
 
-Before anything else — **before even checking `.research/state.json`** — check whether
+Before anything else — **before even checking `research/.system/state.json`** — check whether
 `~/.researchfellow/config.json` exists. If it does, proceed. If not, explain and ask:
 
 ```
@@ -73,15 +73,26 @@ Options:
 
 ## Initialization routing (on `/rf` or `/researchfellow`)
 
-Check whether `.research/state.json` exists.
+Read the legacy state schema before deciding whether migration is applicable. Check
+whether `research/.system/state.json` exists first.
 
-**Exists → S0 resume view.** Render the saved point (see `references/entry-points.md`
+**v3 exists → S0 resume view.** Render the saved point (see `references/entry-points.md`
 §S0): `프로젝트명 + "이어서: {next_action.label} (Step n)" + 완료 x/12·반입 y단계 +
 blocker 요약(≤3줄)`, then offer `[이어서 진행] [상태 자세히] [다른 작업]`. Always also
 offer "새 프로젝트 시작". If `next_action` is absent (e.g. a v1 file), derive the first
 enterable step by trying `can-enter` in order.
 
-**Absent, argument is free-text →** go straight to S1 (treat the text as the idea).
+**Only `.research/state.json` exists →** parse it before routing. If it has no
+`schema_version` and all gate keys are numeric, it is v1: use the existing v1 lazy
+read/upgrade flow and only propose migration after the next state change has produced v2.
+If `schema_version == 2` and all gate keys are semantic (`gate.*`), announce the one-time
+layout migration (P3: what will move, `research/` as the result location, and a brief
+estimate), ask for confirmation (P4), then run
+`project_layout.py migrate --from .research --to research` once. Resume only after it
+succeeds. Invalid or mixed legacy state is a repair blocker, not a migration candidate.
+
+**Neither exists →** run `project_layout.py init --project-dir research`, then continue with the
+new-project path below. **Absent, argument is free-text →** go straight to S1 (treat the text as the idea).
 
 **Absent, no usable argument →** show the 5+1 starting points with AskUserQuestion,
 **order fixed**:
@@ -97,7 +108,7 @@ Map: ①→S1, ②→S2, ③→S3, ④→S4, ⑤→S5. On selection, initialize 
 `templates/project-init.json`, set `project_id` to the output of
 `python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/telemetry.py new-project-id`
 (a real uuid4 — never invent one), copy `templates/compliance-checklist-template.json`
-to `.research/compliance-checklist.json` (self-check list — **never ask about IRB or
+to `research/.system/compliance-checklist.json` (self-check list — **never ask about IRB or
 data reality during the flow**; it surfaces only as Step 12 advice and as a dashboard
 widget), record `entry_point`, and append an `ENTRY_POINT` audit event (FR-E7).
 Then run the chosen entry path.
@@ -136,7 +147,7 @@ When materials are offered, begin with the Receipt mode collection loop; after t
 declares the batch complete, run this pipeline (details in `references/material-intake.md`):
 
 1. **scan** — `material_scanner.py` detects format, structure, rule role hints, lineage;
-   copies originals into `materials/` (immutable).
+   copies originals into `00_materials/` (immutable).
 2. **phi** — `phi_screener.py` on tabular files; docx/md/txt/code excerpts (headings
    included) are masked through the `phi_detect` engine **always** — hits become
    `[MASKED:rule]` placeholders, intake continues. On warning/critical, warn **without
@@ -172,7 +183,7 @@ Steps 1–8 = Planning Mode (synthetic/mock, "NOT REAL DATA"). Steps 9–13 = Re
 | 10 | Real Analysis | `real_results` | **gate.qc (hard)** |
 | 11 | Manuscript | `manuscript`, `checklist` | gate.results (soft) |
 | 12 | Submission Package | `submission_package` | gate.manuscript (soft) |
-| 13 | Revision Loop | `revision/round-N/` (loops) | — |
+| 13 | Revision Loop | `13_revision/round-N/` (loops) | — |
 
 **Read `references/workflow-steps.md` before executing any step.**
 
@@ -229,7 +240,7 @@ Never hand-judge `[req]` artifacts or hard gates — call the script. It only ju
 state writing is your job.
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py can-enter --project-dir .research --step N
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py can-enter --project-dir research --step N
 ```
 
 - **Before entering step N**, run `can-enter --step N`. On **exit 2**, explain the returned
@@ -252,14 +263,14 @@ Method choice is not "always logistic/Cox". **Before proposing any Step 5/6 (pro
 SAP) or Step 9/10 analysis, read `references/methodology.md`** — it selects the method
 for the estimand (confounding control: multivariable/PS/IPTW/g-comp; competing risks;
 time-varying; MICE; E-value) and maps each choice to its STROBE/RECORD reporting items.
-Record the choice as `.research/analysis-plan.json` (the `analysis_plan` artifact).
+Record the choice as `research/10_analysis/analysis-plan.json` (the `analysis_plan` artifact).
 
 **The tool emits code, never numbers.** Turn the plan into an auditable, reproducible R
 script and preconditions with:
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py \
-  --mode plan --project-dir .research --plan-path .research/analysis-plan.json [--data-path <extract>]
+  --mode plan --project-dir research --plan-path research/10_analysis/analysis-plan.json [--data-path <extract>]
 ```
 
 The emitted `analysis/scripts/analysis.R` is the authoritative analysis the user runs;
@@ -270,7 +281,7 @@ a fabricated CI/p.
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/checklist_map.py \
-  --design cohort --manuscript .research/manuscript.md --output .research/checklist-report.json
+  --design cohort --manuscript research/11_manuscript/manuscript.md --output research/11_manuscript/checklist-report.json
 ```
 
 Design → guideline: cohort/case-control/cross-sectional → STROBE (+ RECORD auto-pulled
@@ -308,7 +319,7 @@ Full rules in `references/guardrails.md`.
 
 ## Audit logging
 
-Append one JSON line per state change to `.research/audit.jsonl` (append-only, never edit):
+Append one JSON line per state change to `research/.system/audit.jsonl` (append-only, never edit):
 
 ```json
 {"timestamp": "ISO8601", "event": "EVENT_TYPE", "step": N, "details": {...}}
@@ -325,19 +336,19 @@ Events: `PROJECT_INIT`, `STEP_STARTED`, `STEP_COMPLETED`, `GATE_APPROVED`,
 Whenever you append one of these audit events, ALSO run the matching telemetry call
 (fire-and-forget — it always exits 0 and must never delay or block the flow). Read
 `--entry-point` fresh from `state.json.entry_point.id` each time (never cache it).
-**Rehearsal-mode activity (`.research/rehearsal/`) emits NO step events** — the funnel
+**Rehearsal-mode activity (`research/rehearsal/`) emits NO step events** — the funnel
 tracks real progress only.
 
 | Audit event | Telemetry call (`python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/telemetry.py …`) |
 |---|---|
-| `PROJECT_INIT` | `emit --event project_created --project-dir .research` |
-| `ENTRY_POINT` | `emit --event entry_point_selected --entry-point {S1..S5} --project-dir .research` |
-| `STEP_STARTED` | `emit --event step_entered --step {N} --project-dir .research` |
-| `STEP_COMPLETED` | `emit --event step_completed --step {N} --project-dir .research` |
-| `GATE_APPROVED` | `emit --event gate_approved --step {gate.blocks_step} --project-dir .research` |
-| `GATE_REJECTED` | `emit --event gate_rejected --step {gate.blocks_step} --project-dir .research` |
-| `GATE_CHANGES_REQUESTED` | `emit --event gate_changes_requested --step {gate.blocks_step} --project-dir .research` |
-| `SESSION_RESUMED` (append on S0 resume render) | `emit --event session_resumed --entry-point {원래 진입점} --project-dir .research` |
+| `PROJECT_INIT` | `emit --event project_created --project-dir research` |
+| `ENTRY_POINT` | `emit --event entry_point_selected --entry-point {S1..S5} --project-dir research` |
+| `STEP_STARTED` | `emit --event step_entered --step {N} --project-dir research` |
+| `STEP_COMPLETED` | `emit --event step_completed --step {N} --project-dir research` |
+| `GATE_APPROVED` | `emit --event gate_approved --step {gate.blocks_step} --project-dir research` |
+| `GATE_REJECTED` | `emit --event gate_rejected --step {gate.blocks_step} --project-dir research` |
+| `GATE_CHANGES_REQUESTED` | `emit --event gate_changes_requested --step {gate.blocks_step} --project-dir research` |
+| `SESSION_RESUMED` (append on S0 resume render) | `emit --event session_resumed --entry-point {원래 진입점} --project-dir research` |
 
 ---
 

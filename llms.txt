@@ -16,7 +16,7 @@ on a user's behalf. Follow the steps in order; each has a verification command.
 - Two command names (aliases, identical behavior): `/rf` (primary) and `/researchfellow`.
   Either may be namespaced (`/researchfellow:rf`) if another skill/plugin claims the
   short name; prefer `/researchfellow` when `/rf` collides.
-- State lives in the user's project folder under `.research/` (human-readable JSON/JSONL/MD)
+- State lives in the user's project folder under `research/.system/` (human-readable JSON/JSONL/MD)
 
 ## Install
 
@@ -38,12 +38,12 @@ new manuscript / revise / reviewer response). No configuration is required (DT-3
 ## Operate
 
 - New study: user picks a card, or passes free text: `/rf <idea>`.
-- Resume: `/rf` in a folder containing `.research/` shows "이어서: <next action>".
+- Resume: `/rf` in a folder containing `research/.system/` shows "이어서: <next action>".
 - Arguments: `status` (dashboard), `next` (advance), `step N` (target a step).
 - The skill runs deterministic judges before acting. Never bypass them:
 
-    python3 <plugin>/skills/researchfellow/scripts/state_tool.py validate  --project-dir .research
-    python3 <plugin>/skills/researchfellow/scripts/state_tool.py can-enter --project-dir .research --step N
+    python3 <plugin>/skills/researchfellow/scripts/state_tool.py validate  --project-dir research
+    python3 <plugin>/skills/researchfellow/scripts/state_tool.py can-enter --project-dir research --step N
     # exit 0 = allowed; exit 2 = blocked (JSON lists missing artifacts/gates); exit 1 = state error
 
 - Three hard gates (gate.feasibility, gate.protocol, gate.qc) physically block real-data
@@ -56,7 +56,7 @@ new manuscript / revise / reviewer response). No configuration is required (DT-3
    (PICO, schema, aggregates, draft text) to a remote service, run
    `scripts/phi_screener.py --data-path <file>` and require exit 0.
 2. Never insert synthetic (dry-run) results into manuscript Results/Conclusions/Abstract.
-3. All state changes append events to `.research/audit.jsonl` (append-only).
+3. All state changes append events to `research/.system/audit.jsonl` (append-only).
 4. v1 projects (legacy numeric gate keys, no schema_version) are read via a built-in
    mapping — do NOT write a migration script; the skill lazy-upgrades on first change.
 5. Remote MCP (`.mcp.json.example`) is optional. If absent or unreachable, skip those
@@ -67,7 +67,7 @@ new manuscript / revise / reviewer response). No configuration is required (DT-3
 - [README.md](README.md): human-facing quickstart (Korean)
 - [REQUIREMENTS.md](REQUIREMENTS.md): requirement spec v0.1 (FR-E/M/I/W/T/G/X, NFR, DT)
 - [skills/researchfellow/SKILL.md](skills/researchfellow/SKILL.md): router — read first
-- [skills/researchfellow/references/state-machine.md](skills/researchfellow/references/state-machine.md): state.json v2 schema, artifact DAG, gates, invalidation cascade, v1 mapping
+- [skills/researchfellow/references/state-machine.md](skills/researchfellow/references/state-machine.md): state.json v3 schema, artifact DAG, gates, invalidation cascade, v1 mapping
 - [skills/researchfellow/references/entry-points.md](skills/researchfellow/references/entry-points.md): 5+1 entry points, S1 clarity rubric, resume view
 - [skills/researchfellow/references/material-intake.md](skills/researchfellow/references/material-intake.md): material classification (21 roles), briefing, Intake Gate, PHI rules
 - [skills/researchfellow/references/guardrails.md](skills/researchfellow/references/guardrails.md): integrity rules (all free)
@@ -76,7 +76,7 @@ new manuscript / revise / reviewer response). No configuration is required (DT-3
 ## Scripts (all Python 3 stdlib-first, offline except pubmed_search)
 
 - `state_tool.py` — read-only judge: validate / can-enter / gate-check / cascade
-- `material_scanner.py` — classify user files (Stage 0-1), immutable copies to `.research/materials/`
+- `material_scanner.py` — classify user files (Stage 0-1), immutable copies to `research/00_materials/`
 - `phi_screener.py` — PHI pattern scan; never prints matched values (exit 0/1/2)
 - `pubmed_search.py` — the ONLY network tool (NCBI E-utilities, user's own email/key)
 - `qc_checker.py`, `dsl_compiler.py`, `analysis_runner.py` — QC, cohort DSL→SQL, analysis
@@ -86,6 +86,6 @@ new manuscript / revise / reviewer response). No configuration is required (DT-3
 1. `python3 -c "import json; json.load(open('.claude-plugin/plugin.json'))"` → OK
 2. `python3 -m py_compile skills/researchfellow/scripts/*.py` → OK
 3. Fresh folder + `/rf` → 5-card menu appears
-4. Folder with `.research/` + `/rf` → resume view ("이어서: …")
+4. Folder with `research/.system/` + `/rf` → resume view ("이어서: …")
 5. `state_tool.py can-enter --step 10` on a fresh project → exit 2 with missing list
    (proves the gate/DAG judge is wired)

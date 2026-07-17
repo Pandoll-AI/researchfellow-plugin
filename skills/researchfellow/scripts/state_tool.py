@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Read-only state-machine judge for the ResearchFellow skill (state.json v2).
+"""Read-only state-machine judge for the ResearchFellow skill (state.json v1-v3).
 
 This tool NEVER writes state. All mutation is the host LLM's job; the script only
-inspects `.research/state.json`, judges deterministic invariants, and reports the
+inspects the resolved v3 `research/.system/state.json` or legacy `state.json`, judges deterministic invariants, and reports the
 verdict via exit codes + JSON on stdout. Audit-replay verification is out of scope
 for P0 (see p0-implementation-design_2026-07-04.md §4).
 
 Subcommands:
-    state_tool.py validate   --project-dir .research/            # exit 0/1
-    state_tool.py can-enter  --project-dir .research/ --step N   # exit 0/2
-    state_tool.py gate-check --project-dir .research/ --for real-analysis  # exit 0/2
-    state_tool.py cascade    --project-dir .research/ --changed <artifact>  # exit 0
+    state_tool.py validate   --project-dir research/            # exit 0/1
+    state_tool.py can-enter  --project-dir research/ --step N   # exit 0/2
+    state_tool.py gate-check --project-dir research/ --for real-analysis  # exit 0/2
+    state_tool.py cascade    --project-dir research/ --changed <artifact>  # exit 0
 
-Handles both v2 state.json (schema_version:2 + semantic gate ids) and legacy v1
+Handles v2/v3 state.json (semantic gate ids) and legacy v1
 state.json (no schema_version + numeric gate keys) via the mapping constants below.
 
 IMPORTANT: The DAG table, invalidation adjacency list, gate-anchor map and v1->v2
@@ -21,10 +21,10 @@ gate mapping below MUST stay identical to the tables in
 (cross-checked in review).
 
 Usage examples:
-    python3 state_tool.py validate --project-dir .research/
-    python3 state_tool.py can-enter --project-dir .research/ --step 10
-    python3 state_tool.py gate-check --project-dir .research/ --for real-analysis
-    python3 state_tool.py cascade --project-dir .research/ --changed protocol
+    python3 state_tool.py validate --project-dir research/
+    python3 state_tool.py can-enter --project-dir research/ --step 10
+    python3 state_tool.py gate-check --project-dir research/ --for real-analysis
+    python3 state_tool.py cascade --project-dir research/ --changed protocol
 """
 
 from __future__ import annotations
@@ -35,6 +35,8 @@ import os
 import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
+
+from rf_paths import resolve_state_path
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +226,7 @@ COMPLETED_STATUSES = {"completed", "imported"}
 
 def load_state(project_dir: str) -> Optional[dict]:
     """Load state.json from a project dir. Returns None if absent/unreadable."""
-    state_path = os.path.join(project_dir, "state.json")
+    state_path = resolve_state_path(project_dir)
     if not os.path.exists(state_path):
         return None
     try:
@@ -235,10 +237,10 @@ def load_state(project_dir: str) -> Optional[dict]:
 
 
 def detect_schema(state: dict) -> Tuple[str, dict]:
-    """Detect schema flavor: 'v1', 'v2', or 'hybrid'.
+    """Detect schema flavor: 'v1', 'v2', 'v3', or an invalid state.
 
     v1  = no schema_version && all gate keys numeric.
-    v2  = schema_version >= 2 && all gate keys semantic ('gate.*').
+    v2/v3 = matching schema_version && all gate keys semantic ('gate.*').
     Anything else (mixed keys, version/key mismatch) = hybrid (a violation).
     """
     gates = state.get("gates", {}) or {}
@@ -247,21 +249,14 @@ def detect_schema(state: dict) -> Tuple[str, dict]:
     version = state.get("schema_version")
 
     numeric = bool(keys) and all(re.fullmatch(r"\d+", str(k)) for k in keys)
-    semantic = bool(keys) and all(str(k).startswith("gate.") for k in keys)
+    semantic = all(str(k).startswith("gate.") for k in keys)
 
-    try:
-        version_ok = has_version and int(version) >= 2
-    except (TypeError, ValueError):
-        version_ok = False
-
-    if not keys:
-        # No gates block at all — infer purely from schema_version presence.
-        return ("v2", {}) if has_version else ("v1", {})
-
-    if version_ok and semantic:
-        return "v2", {}
+    if has_version and version in (2, 3) and semantic:
+        return f"v{version}", {}
     if not has_version and numeric:
         return "v1", {}
+    if has_version and version not in (2, 3):
+        return "unsupported", {"schema_version": version, "supported": [2, 3]}
     return "hybrid", {"has_version": has_version, "numeric": numeric, "semantic": semantic}
 
 
@@ -333,6 +328,8 @@ def check_real_data_gates(state: dict) -> Tuple[bool, List[str]]:
     and calls this so an LLM cannot bypass the gate by editing prose.
     """
     schema, _ = detect_schema(state)
+    if schema not in ("v1", "v2", "v3"):
+        return False, list(REAL_DATA_GATES)
     missing: List[str] = []
     for gate in REAL_DATA_GATES:
         if _gate_status(state, schema, gate) != "approved":
@@ -348,11 +345,17 @@ def do_validate(state: dict, project_dir: str) -> Tuple[dict, int]:
     schema, schema_detail = detect_schema(state)
     violations: List[dict] = []
 
-    # Invariant: schema must not be a v1/v2 hybrid.
+    # Invariant: only legacy v1 and explicitly supported v2/v3 schemas are valid.
     if schema == "hybrid":
         violations.append({
             "invariant": "schema_consistency",
             "detail": "state.json mixes v1 and v2 conventions (gate keys vs schema_version)",
+            "context": schema_detail,
+        })
+    elif schema == "unsupported":
+        violations.append({
+            "invariant": "supported_schema_version",
+            "detail": "schema_version must be 2 or 3",
             "context": schema_detail,
         })
 
@@ -379,8 +382,8 @@ def do_validate(state: dict, project_dir: str) -> Tuple[dict, int]:
             "steps": sorted(in_progress, key=lambda x: int(x)),
         })
 
-    # Invariant: a draft artifact must not have a valid downstream (v2 registry only).
-    if schema == "v2":
+    # Invariant: a draft artifact must not have a valid downstream (v2/v3 registry).
+    if schema in ("v2", "v3"):
         registry = state.get("artifacts", {}) or {}
         for artifact, entry in registry.items():
             if entry.get("validity") != "draft":
@@ -405,6 +408,13 @@ def do_validate(state: dict, project_dir: str) -> Tuple[dict, int]:
 
 def do_can_enter(state: dict, project_dir: str, step: int) -> Tuple[dict, int]:
     schema, _ = detect_schema(state)
+
+    if schema not in ("v1", "v2", "v3"):
+        return {
+            "step": step, "schema": schema, "allowed": False,
+            "error": "state schema is invalid or unsupported; run validate and repair it",
+            "missing_artifacts": [], "draft_artifacts": [], "missing_hard_gates": [], "warnings": [],
+        }, 2
 
     if step not in DAG:
         report = {
@@ -464,6 +474,9 @@ def do_can_enter(state: dict, project_dir: str, step: int) -> Tuple[dict, int]:
 
 def do_gate_check(state: dict, for_what: str) -> Tuple[dict, int]:
     schema, _ = detect_schema(state)
+    if schema not in ("v1", "v2", "v3"):
+        return {"for": for_what, "schema": schema, "ok": False,
+                "error": "state schema is invalid or unsupported; run validate and repair it"}, 2
     if for_what == "real-analysis":
         ok, missing = check_real_data_gates(state)
         report = {"for": for_what, "schema": schema, "ok": ok, "missing": missing}

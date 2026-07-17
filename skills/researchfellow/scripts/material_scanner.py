@@ -4,7 +4,7 @@
 Offline, stdlib-only intake scanner. Detects file format (extension + magic
 bytes), performs a lightweight format-specific structure scan, applies the
 FR-M4 role heuristics, pre-computes lineage (duplicates / version groups),
-copies originals into an immutable `materials/` store, and emits a scan-report
+copies originals into an immutable `00_materials/` store for v3 projects, and emits a scan-report
 JSON that Stage 2 (host-LLM batch classification) consumes.
 
 It NEVER extracts PDF text (that is delegated to the host LLM Read tool) and
@@ -18,8 +18,8 @@ Usage:
     python3 material_scanner.py \
         --input data/ --input notes.docx \
         --paste-refs "PMID:38812345, 10.1001/jama.2024.1234" \
-        --project-dir .research/ [--no-copy] [--phi-screen] \
-        --output .research/scan-report.json
+        --project-dir research/ [--no-copy] [--phi-screen] \
+        --output research/.system/scan-report.json
 
 Exit codes:
     0  ok
@@ -40,6 +40,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+
+from rf_paths import MATERIALS_DIR, resolve_materials_dir, resolve_system_file
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -765,7 +767,7 @@ def copy_material(path: str, file_hash: str, materials_dir: str) -> str:
 # existing registry — continue material_id numbering
 # ---------------------------------------------------------------------------
 def next_material_index(project_dir: str) -> int:
-    reg_path = os.path.join(project_dir, "materials.json")
+    reg_path = resolve_system_file(project_dir, "materials")
     if not os.path.exists(reg_path):
         return 1
     try:
@@ -786,7 +788,7 @@ def next_material_index(project_dir: str) -> int:
 # PHI integration
 # ---------------------------------------------------------------------------
 def run_phi_screen(original_path: str, material_id: str, project_dir: str) -> Dict[str, Any]:
-    out_path = os.path.join(project_dir, f"phi-report_{material_id}.json")
+    out_path = os.path.join(os.path.dirname(resolve_system_file(project_dir, "state")), f"phi-report_{material_id}.json")
     phi_script = os.path.join(SCRIPT_DIR, "phi_screener.py")
     try:
         proc = subprocess.run(
@@ -820,7 +822,7 @@ def run_phi_screen(original_path: str, material_id: str, project_dir: str) -> Di
 def scan(inputs: List[str], paste_refs: str, project_dir: str,
          no_copy: bool, phi_screen: bool) -> Dict[str, Any]:
     files = expand_inputs(inputs)
-    materials_dir = os.path.join(project_dir, "materials")
+    materials_dir = resolve_materials_dir(project_dir)
     start_idx = next_material_index(project_dir)
 
     entries: List[Dict[str, Any]] = []
@@ -833,7 +835,7 @@ def scan(inputs: List[str], paste_refs: str, project_dir: str,
 
         stored_as = None
         if not no_copy:
-            stored_as = "materials/" + copy_material(path, file_hash, materials_dir)
+            stored_as = (MATERIALS_DIR if os.path.basename(materials_dir) == MATERIALS_DIR else "materials") + "/" + copy_material(path, file_hash, materials_dir)
 
         scan_result = dispatch_scan(path, fmt, subtype)
 
@@ -899,7 +901,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Scan and pre-classify research materials (offline)")
     parser.add_argument("--input", action="append", default=[], help="File or directory (repeatable)")
     parser.add_argument("--paste-refs", default="", help='Pasted refs, e.g. "PMID:38812345, 10.1001/jama..."')
-    parser.add_argument("--project-dir", default=".research", help="Project directory (default .research)")
+    parser.add_argument("--project-dir", default="research", help="Project directory (default research)")
     parser.add_argument("--no-copy", action="store_true", help="Do not copy originals into materials/")
     parser.add_argument("--phi-screen", action="store_true",
                         help="Run phi_screener.py on tabular files (docx/md/txt/code excerpt "

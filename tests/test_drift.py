@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 
 import state_tool
+import rf_paths
 
 DOC = "state-machine.md"
 
@@ -16,6 +17,7 @@ DOC = "state-machine.md"
 _ANCHOR_RE = re.compile(r"^\|\s*(gate\.[\w-]+)\s*\|\s*(\w+)\s*\|\s*$")
 # | 9 | gate.qc | hard |
 _V1MAP_RE = re.compile(r"^\|\s*(\d+)\s*\|\s*(gate\.[\w-]+)\s*\|\s*(soft|hard)\s*\|")
+_ARTIFACT_PATH_RE = re.compile(r"^\|\s*`([\w_]+)`\s*\|\s*`([^`]+)`\s*\|$")
 
 
 def _doc_text(references_dir):
@@ -53,6 +55,18 @@ def test_real_data_gates_are_the_three_hard_gates():
     assert set(state_tool.REAL_DATA_GATES) == hard_in_code
 
 
+def test_v3_layout_mirror_matches_rf_paths(references_dir):
+    """The explicit v3 mirror table is a machine-checked view of rf_paths."""
+    doc_paths = {}
+    for line in _doc_text(references_dir).splitlines():
+        match = _ARTIFACT_PATH_RE.match(line.strip())
+        if match:
+            artifact, path = match.groups()
+            if artifact in rf_paths.ARTIFACT_DIRS:
+                doc_paths[artifact] = path.rstrip("/")
+    assert doc_paths == rf_paths.ARTIFACT_DIRS
+
+
 # --- checklist JSON coherence (single-source integrity) ---
 
 import json  # noqa: E402
@@ -83,4 +97,3 @@ def test_every_checklist_guideline_is_documented(references_dir):
     doc = (references_dir / "checklist-templates.md").read_text(encoding="utf-8").upper()
     for _name, cl in _checklists(references_dir):
         assert cl["guideline"].upper() in doc, f"{cl['guideline']} undocumented in checklist-templates.md"
-

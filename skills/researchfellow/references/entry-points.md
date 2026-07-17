@@ -57,7 +57,7 @@ Take the free text and judge clarity by **how many of P·E·O are identifiable**
 2. Restate on one screen, **explicitly naming any uncertain field** (mark it
    `"confidence": "low"` and say so).
 3. Confirm once: "이렇게 이해했는데 맞나요? 틀린 부분만 짚어주세요."
-4. Write `.research/idea.json`, mark step 1 `completed`, `ARTIFACT_CREATED` (idea).
+4. Write `research/01_pico/idea.json`, mark step 1 `completed`, `ARTIFACT_CREATED` (idea).
 5. Hand off to Layer 2 (offer to bring materials), then continue toward Step 2.
 
 ### rough (1–2 identified) — narrowing question bank

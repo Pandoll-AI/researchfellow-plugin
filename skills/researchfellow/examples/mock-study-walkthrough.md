@@ -23,7 +23,7 @@ drives both treatment choice (confounding by indication) and outcome; true HR �
 
 ### 1. PHI screen (local, offline) → CLEAN
 ```
-$ phi_screener.py --data-path data.csv --output .research/phi-report.json
+$ phi_screener.py --data-path data.csv --output research/.system/phi-report.json
   Findings: 0  Max severity: clean
 ```
 
@@ -31,22 +31,22 @@ $ phi_screener.py --data-path data.csv --output .research/phi-report.json
 Artifacts written: `idea.json, literature.json, evidence-table.json, variables.json,
 protocol.md, sap.md, shells.md`. The read-only judge confirms structure and gates:
 ```
-$ state_tool.py validate --project-dir .research/          → {"schema":"v2","violations":[]}
+$ state_tool.py validate --project-dir research/          → {"schema":"v3","violations":[]}
 $ state_tool.py can-enter --step 5                          → allowed=True  (soft gate.endpoint warned)
 $ state_tool.py can-enter --step 9                          → allowed=False missing_hard_gates=[gate.feasibility, gate.protocol]
 ```
 
 ### 3. Synthetic dry-run (planning) — honest, no false precision
 ```
-$ analysis_runner.py --mode synthetic --project-dir .research/
+$ analysis_runner.py --mode synthetic --project-dir research/
   glm status: aggregate_only   *** NOT REAL DATA ***
 ```
 Aggregate input returns `aggregate_only` — **no fabricated CI/p**.
 
 ### 4. Emit the reproducible analysis script (plan mode)
 ```
-$ analysis_runner.py --mode plan --plan-path .research/analysis-plan.json --data-path data.csv
-  Script (authoritative, run in R): .research/analysis/scripts/analysis.R
+$ analysis_runner.py --mode plan --plan-path research/10_analysis/analysis-plan.json --data-path data.csv
+  Script (authoritative, run in R): research/10_analysis/scripts/analysis.R
   [INFO] ph_assumption: verify proportional hazards (cox.zph)
 ```
 The emitted `analysis.R` sets up IPTW (`weightit(exposed ~ age + sex + curb65 + charlson + icu ...)`,
@@ -56,7 +56,7 @@ The tool emits code; it does not fabricate numbers.
 ### 5. Hard gate is fail-closed (the brand promise, live)
 Attempting real analysis **before** the gates are approved:
 ```
-$ analysis_runner.py --mode real --project-dir .research/ --data-path data.csv
+$ analysis_runner.py --mode real --project-dir research/ --data-path data.csv
   ERROR: Missing required real-data gate approvals: ['gate.feasibility','gate.protocol','gate.qc']
   → exit 1   (blocked)
 ```
@@ -70,7 +70,7 @@ $ state_tool.py can-enter --step 10              → allowed=True
 ### 6. Real analysis (individual-level, genuine inference)
 With the gates approved and the stats stack installed:
 ```
-$ analysis_runner.py --mode real --project-dir .research/ --data-path data.csv
+$ analysis_runner.py --mode real --project-dir research/ --data-path data.csv
   cox     : ok  HR=0.704  95% CI [0.507, 0.978]  p=0.0361
   logistic: ok  OR=0.792  95% CI [0.559, 1.121]  p=0.1879  (crude preview)
   table1  : exposed 477 (56 events) / unexposed 723 (104 events)
@@ -81,7 +81,7 @@ emitted R script.
 
 ### 7. Reporting coverage (design-aware, free)
 ```
-$ checklist_map.py --design cohort --manuscript .research/manuscript.md
+$ checklist_map.py --design cohort --manuscript research/11_manuscript/manuscript.md
   Checklist coverage (STROBE, RECORD, design=cohort):   ← RECORD auto-pulled (EMR/ICD-10)
   covered=26 unclear=9 missing=1 / 36
   REQUIRED items needing attention: STROBE-3, STROBE-8, STROBE-18
@@ -91,7 +91,7 @@ the draft (objectives/hypothesis, data-source detail, key-results summary).
 
 ### 8. Final state
 ```
-$ state_tool.py validate --project-dir .research/   → schema=v2, violations=0
+$ state_tool.py validate --project-dir research/   → schema=v3, violations=0
 ```
 
 ## What this rehearsal demonstrates

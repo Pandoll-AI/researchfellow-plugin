@@ -40,6 +40,15 @@ def test_plan_emits_cox_r_script(run_script, tmp_path):
     assert "risk_ratio" not in script.lower() or "report both" in script.lower()
 
 
+def test_plan_emits_r_script_to_v3_analysis_folder(run_script, tmp_path):
+    project = tmp_path / "research"
+    assert run_script("project_layout.py", "init", "--project-dir", str(project)).returncode == 0
+    plan = _plan(tmp_path, {"estimand": {}, "primary_method": "logistic", "covariates": []})
+    proc = run_script(RUNNER, "--mode", "plan", "--project-dir", str(project), "--plan-path", str(plan))
+    assert proc.returncode == 0, proc.stderr
+    assert (project / "10_analysis" / "scripts" / "analysis.R").exists()
+
+
 def test_plan_reports_epv_precondition(run_script, tmp_path):
     spec = {
         "estimand": {"exposure_var": "exposed", "outcome_var": "event"},

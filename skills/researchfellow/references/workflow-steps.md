@@ -10,7 +10,7 @@ gates it depends on are present and valid, regardless of how the project arrived
 **Entry is DAG-decided, not "previous step done".** Before entering any step N, run:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py can-enter --project-dir .research --step N
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py can-enter --project-dir research --step N
 ```
 
 On exit 2, explain the returned `missing_artifacts` / `draft_artifacts` /
@@ -39,11 +39,11 @@ Gate ids are semantic (not ordinals). Types (hard/soft) and anchors are in
 1. Extract Population, Exposure, Comparator, Outcome, Time, Setting.
 2. Mark uncertain fields `"confidence": "low"` and **tell the user** which parts are
    uncertain, asking if they can clarify.
-3. Use `templates/pico-template.json` as schema; save to `.research/idea.json`.
+3. Use `templates/pico-template.json` as schema; save to `research/01_pico/idea.json`.
 4. Suggest 2–3 study-design candidates (cohort, case-control, cross-sectional) with brief
    pros/cons; identify potential biases and key covariates.
 
-**Output:** `idea` → `.research/idea.json`
+**Output:** `idea` → `research/01_pico/idea.json`
 
 **Gate:** `gate.go-no-go` (soft) — clinically meaningful? retrospective time axis feasible?
 not oversaturated? Evaluated on the idea before Literature Scoping.
@@ -62,12 +62,12 @@ not oversaturated? Evaluated on the idea before Literature Scoping.
 2. Run:
    ```
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/pubmed_search.py \
-       --query "<query>" --email "<email>" --retmax 20 --output .research/literature/
+       --query "<query>" --email "<email>" --retmax 20 --output research/02_literature/literature/
    ```
 3. Show the top 5–10 titles and ask if the direction looks right; save queries to
-   `.research/literature/queries.json`.
+   `research/02_literature/literature/queries.json`.
 
-**Output:** `literature` → `.research/literature/`
+**Output:** `literature` → `research/02_literature/literature/`
 
 **Gate:** none (query finalization recommended).
 
@@ -86,7 +86,7 @@ not oversaturated? Evaluated on the idea before Literature Scoping.
 3. Build the table with `templates/evidence-table-template.json`.
 4. **Present a summary:** "N편 분석 결과, 효과 방향 일관성은 X, 발견된 gap은 Y."
 
-**Output:** `evidence_table` → `.research/evidence-table.json`
+**Output:** `evidence_table` → `research/03_evidence_table/evidence-table.json`
 
 **Gate:** `gate.novelty` (soft) — identified gap supported by PMID evidence. *(Remote:
 Step 3 can be deepened by `novelty_check` if the MCP server is configured — optional.)*
@@ -105,7 +105,7 @@ Step 3 can be deepened by `novelty_check` if the MCP server is configured — op
 3. If a dataset schema is provided, attempt auto-mapping and **flag unmapped variables**.
 4. Present the list organized by category (exposure / outcome / covariates / time).
 
-**Output:** `variables` → `.research/variables.json`
+**Output:** `variables` → `research/04_variables/variables.json`
 
 **Gate:** `gate.endpoint` (soft) — primary endpoint confirmed (measurement + time window).
 Variable feasibility feeds the **hard** `gate.feasibility`, which is enforced later at
@@ -125,7 +125,7 @@ Step 9 entry.
    outline, ethics, limitations; version the document.
 3. **Show a summary** of key decisions (design, cohort, endpoints) before generating.
 
-**Output:** `protocol` → `.research/protocol.md`
+**Output:** `protocol` → `research/05_protocol/protocol.md`
 
 **Gate:** `gate.protocol` (**hard**) — protocol reviewed and approved. Required (with
 `gate.feasibility`) before any real-data step; enforced deterministically at Step 9 entry.
@@ -143,7 +143,7 @@ Step 9 entry.
 2. Pre-specify sensitivity and subgroup analyses; specify missing-data handling.
 3. Tell the user: "SAP 승인 후 추가되는 분석은 자동으로 'exploratory'로 표시됩니다."
 
-**Output:** `sap` → `.research/sap.md`
+**Output:** `sap` → `research/06_sap/sap.md`
 
 **Gate:** none. *(Remote: Step 6 can be deepened by `methodology_advisor` if configured.)*
 
@@ -158,7 +158,7 @@ Step 9 entry.
 **Process:** generate Table 1 shell, primary results table, subgroup/sensitivity tables,
 cohort flow diagram, and figure shells (forest plot, survival curve).
 
-**Output:** `shells` → `.research/shells/`
+**Output:** `shells` → `research/07_shells/shells/`
 
 **Gate:** none.
 
@@ -176,11 +176,11 @@ cohort flow diagram, and figure shells (forest plot, survival curve).
 2. Run:
    ```
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py \
-       --mode synthetic --project-dir .research --sap-version v0.1
+       --mode synthetic --project-dir research --sap-version v0.1
    ```
 3. Show results with a clear "NOT REAL DATA" label.
 
-**Output:** `synthetic_results` → `.research/analysis/synthetic/`
+**Output:** `synthetic_results` → `research/08_dry_run/synthetic_results/`
 
 **Critical rule:** synthetic results MUST NOT enter manuscript Results/Conclusions/Abstract.
 
@@ -199,7 +199,7 @@ cohort flow diagram, and figure shells (forest plot, survival curve).
 0. **No data yet? Offer the rehearsal path** (before any gate talk): "아직 실제
    데이터가 없으시면, 가짜 데이터로 나머지 전 과정을 미리 체험해볼 수 있어요."
    On interest, follow `references/synthetic-data.md` — forced consent, synth_builder,
-   `--mode rehearsal`, everything under `.research/rehearsal/` only. Rehearsal never
+   `--mode rehearsal`, everything under `research/rehearsal/` only. Rehearsal never
    touches steps/gates/execution_mode and emits no telemetry step events. Do NOT
    interrogate why the user has no data (IRB/data reality stay a self-checklist — D7).
 1. Explain the transition: "여기서부터 실제 데이터를 다룹니다. feasibility·protocol 게이트
@@ -207,16 +207,16 @@ cohort flow diagram, and figure shells (forest plot, survival curve).
 2. Define the cohort with the Cohort DSL (see `references/cohort-dsl.md`) and compile:
    ```
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/dsl_compiler.py \
-       --dsl .research/extraction-plan.dsl --output .research/extraction-plan.sql
+       --dsl research/09_data_qc/extraction-plan.dsl --output research/09_data_qc/extraction-plan.sql
    ```
 3. After the user extracts the data, run QC:
    ```
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/qc_checker.py \
-       --data-path <path> --output .research/qc-report.json
+       --data-path <path> --output research/09_data_qc/qc-report.json
    ```
 4. Show the QC summary clearly — critical issues in **bold**.
 
-**Output:** `extraction_plan`, `qc_report` → `.research/qc-report.json`
+**Output:** `extraction_plan`, `qc_report` → `research/09_data_qc/`
 
 **Gate:** `gate.qc` (**hard**) — no critical QC flags (or explained/excluded). Blocks Step 10.
 
@@ -230,7 +230,7 @@ cohort flow diagram, and figure shells (forest plot, survival curve).
 gates (`gate.feasibility`, `gate.protocol`) still approved.** Verify with:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py gate-check --project-dir .research --for real-analysis
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py gate-check --project-dir research --for real-analysis
 ```
 
 **Process:**
@@ -238,12 +238,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py gate-c
    blocks the run, FR-G4):
    ```
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py \
-       --mode real --project-dir .research --data-path <path>
+       --mode real --project-dir research --data-path <path>
    ```
 2. Present effect sizes, confidence intervals, p-values; label each analysis pre-specified
    or exploratory; run model diagnostics.
 
-**Output:** `real_results` → `.research/analysis/real/`
+**Output:** `real_results` → `research/10_analysis/real_results/`
 
 **Gate:** `gate.results` (soft) — pre-specified vs exploratory labeled, estimates plausible.
 
@@ -266,7 +266,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py gate-c
 3. Run the STROBE/RECORD checklist mapping (see `references/checklist-templates.md`).
 4. **Show coverage:** "22개 항목 중 N개 충족, 누락 항목: ...".
 
-**Output:** `manuscript`, `checklist` → `.research/manuscript.md`, `.research/checklist.json`
+**Output:** `manuscript`, `checklist` → `research/11_manuscript/manuscript.md`, `research/11_manuscript/checklist.json`
 
 **Gate:** `gate.manuscript` (soft) — Methods match protocol, every numeric claim references
 a table/figure, checklist coverage adequate. *(Remote: `checklist_map` can deepen Step 11.)*
@@ -284,13 +284,13 @@ report and an audit-trail (provenance) summary; verify all gates approved; forma
 target journal's guidelines if specified.
 
 **Compliance advice (FYI only — never a gate, never a blocker):** read
-`.research/compliance-checklist.json` and, if any item is unchecked, add ONE advisory
+`research/.system/compliance-checklist.json` and, if any item is unchecked, add ONE advisory
 line to the package summary — e.g. "제출 전 확인: 자기 점검 항목 중 N개가 미확인
 상태입니다 (IRB 승인, …). 대부분의 저널이 Methods에 IRB 승인 정보를 요구합니다."
 This is the ONLY place the checklist is voiced; the flow never interrogates the user
 about IRB or data reality (2026-07-16 D7).
 
-**Output:** `submission_package` → `.research/submission/`
+**Output:** `submission_package` → `research/12_submission/submission_package/`
 
 **Gate:** none (final for the initial submission). *(Remote: `integrity_report` optional.)*
 
@@ -307,20 +307,20 @@ about IRB or data reality (2026-07-16 D7).
 
 ```json
 { "round": 1, "comments_material": "m-012",
-  "response_letter": "revision/round-1/response.md",
-  "diff": "revision/round-1/diff.md", "closed_at": null }
+  "response_letter": "13_revision/round-1/response.md",
+  "diff": "13_revision/round-1/diff.md", "closed_at": null }
 ```
 
 **Process:**
 1. Parse the reviewer comments into a point-by-point issue list.
 2. For each point, revise the manuscript and record the change in
-   `revision/round-<N>/diff.md`; draft the reply in
-   `revision/round-<N>/response.md`.
+   `13_revision/round-<N>/diff.md`; draft the reply in
+   `13_revision/round-<N>/response.md`.
 3. When the letter + diff are finalized, set that round's `closed_at`. **A new round opens
    a *new* entry — never mutate a closed one.**
 4. If a revision bumps `manuscript` (version increase), run `cascade --changed manuscript`
    and apply the result before continuing.
 
-**Output:** `revision/round-<N>/` (loops)
+**Output:** `13_revision/round-<N>/` (loops)
 
 **Gate:** none. *(Remote: `reviewer_playbook` can deepen Step 13 if configured.)*

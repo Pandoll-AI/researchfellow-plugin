@@ -16,18 +16,18 @@ always remain the host LLM's job.
    `{"likely_headless": true}` → skip the Desk entirely this session and use the
    chat procedure. Signals: any `SSH_CONNECTION|SSH_TTY|SSH_CLIENT` env; on
    Linux only, missing `DISPLAY`/`WAYLAND_DISPLAY` (macOS/Windows never set it).
-2. Write the payload to `.research/desk/payload-<session>.json` (schema below).
+2. Write the payload to `research/.system/desk/payload-<session>.json` (schema below).
    Pick `<session>`: short id you choose (e.g. `s1-01`) — all file names derive
    from it.
 3. Launch **in the background** (the script blocks until submit/timeout — the
    harness notifies you when it exits; do NOT poll):
    ```
    python3 .../desk_server.py --view {s1_interview|dashboard} \
-       --payload .research/desk/payload-<session>.json \
-       --project-dir .research --session-id <session>
+       --payload research/.system/desk/payload-<session>.json \
+       --project-dir research --session-id <session>
    ```
    The server opens the browser itself and prints `{url, port, session}`.
-4. On process exit, read `.research/desk/session-<session>.json`:
+4. On process exit, read `research/.system/desk/session-<session>.json`:
 
    | exit / status | meaning | you do |
    |---|---|---|
@@ -92,7 +92,7 @@ phi_detect before writing to disk (fail-closed: engine unavailable → withheld)
 - Build `steps`/`blockers` from a FRESH `state_tool.py can-enter`/`validate`
   run, not a stale snapshot.
 - Answers: `{action: "continue|start_rehearsal|new_entry|new_project", compliance: {id: bool}}`.
-  Persist compliance checks into `.research/compliance-checklist.json` (set
+  Persist compliance checks into `research/.system/compliance-checklist.json` (set
   `checked_at`), then route by `action` exactly like the S0 3-choice chat menu.
   Gate strip is READ-ONLY — gate approvals stay conversational.
 

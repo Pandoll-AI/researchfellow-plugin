@@ -43,7 +43,7 @@
 | FR-M3 | 4축 분류: format × role(연구 온톨로지 21종) × confidence(high/medium/low) × lineage(버전·파생·중복) |
 | FR-M4 | Stage 1 tabular 휴리스틱: 소행수+p-value/CI 컬럼→analysis_output, 대행수+ID 컬럼→raw_dataset |
 | FR-M5 | Layer 1 기점을 분류 사전확률로 프롬프트에 주입한다 |
-| FR-M6 | 원본은 `.research/materials/`에 불변 보관, `materials.json` 레지스트리로 관리. 확정 시 아티팩트로 승격(promote, `origin: imported`) |
+| FR-M6 | 원본은 `research/00_materials/`에 불변 보관, `research/.system/materials.json` 레지스트리로 관리. 확정 시 아티팩트로 승격(promote, `origin: imported`) |
 | FR-M7 | 브리핑 3의제를 대화로 진행: ① 이 자료로 할 수 있는 것 ② 수준 평가(갭 리포트) ③ 구체적 시작점 제안 |
 | FR-M8 | 갭이 크면 일방 진행하지 않고 인터뷰로 분기한다 ("문헌 검색부터 같이 할까요, 더 갖고 계신가요?") |
 | FR-M9 | 파일마다 묻지 않는다: high는 조용히 확정, medium 이하만 브리핑에서 일괄 확인 |
@@ -62,10 +62,10 @@
 | FR-I6 | 보고(P5)에는 산출물 폴더 경로 필수. 단계 완료 시 `SUMMARY.md` 영속화 **(SUMMARY.md는 Phase 4; 현재 미구현)** |
 | FR-I7 | `PROGRESS.md`·`RESEARCH_LOG.md`는 progress_renderer가 결정론적으로 전체 재생성하고, 모든 저장 지점에서 비차단으로 실행 **(Phase 3; 현재 미구현)** |
 | FR-I8 | 차단설명 4요소(무엇/왜-연구 언어/해제 조건/지금 가능한 것)를 모든 차단 순간에 적용 |
-| FR-I9 | PROJECT_INIT 시 13단계 폴더+정적 README+`.gitignore`(materials·desk)를 사전 생성하고, 상태 표기는 PROGRESS.md 단일화 **(Phase 2; 현재 미구현)** |
+| FR-I9 | PROJECT_INIT 시 13단계 폴더+정적 README+`.gitignore`(materials·desk)를 사전 생성하고, 상태 표기는 PROGRESS.md 단일화 |
 | FR-I10 | 표기 언어: 폴더·파일명·표·피겨·상태 라벨은 영어, 설명 산문은 한국어 (P-F) |
 
-## 5. FR-W — 12단계 하네스 (상태머신 v2)
+## 5. FR-W — 12단계 하네스 (상태머신 v3)
 
 | ID | 요구사항 |
 |----|---------|
@@ -122,21 +122,17 @@
 | FR-P3 | **유예(폐쇄망)**: 토큰 발급 실패 시 로컬 임시 ID(`local:<uuid4>`)로 시작을 허용하고 이벤트는 로컬 큐(캡 500)에 적재, 온라인 복구 시 정식 토큰으로 치환 후 소급 전송 |
 | FR-P4 | **비차단**: telemetry.py는 어떤 경우에도 exit 0 (타임아웃 1.5s, fire-and-forget). 텔레메트리 실패가 워크플로우를 지연·차단하지 않는다 |
 | FR-P5 | **철회**: `telemetry.py revoke` — 서버 이벤트 삭제 + 토큰 revoked + 로컬 동의 파일 제거. 절차는 공개 프라이버시 문서(web/privacy.html)에 명시 |
-| FR-P6 | 설치 단위 상태는 `~/.researchfellow/`(config.json, queue.jsonl) — 프로젝트 단위 `.research/`와 구분되는 유일한 글로벌 상태 |
+| FR-P6 | 설치 단위 상태는 `~/.researchfellow/`(config.json, queue.jsonl) — 프로젝트 단위 `research/`와 구분되는 유일한 글로벌 상태 |
 | FR-P7 | `state.json.project_id`는 `telemetry.py new-project-id`가 생성한 실제 uuid4 — `project_name`(자유 문자열)은 절대 해시 원본으로 쓰지 않는다 |
 
 ## 9. 파일 레이아웃 (유저 프로젝트)
 
 ```
-.research/
-├── state.json          # entry_point, steps(+imported), gates(의미 ID, retroactive)
-├── materials/          # 원본 불변 보관
-├── materials.json      # 분류 레지스트리
-├── idea.json, protocol.md, sap.md, variables.json, evidence-table.json
-├── shells/, analysis/{synthetic,real}/, literature/
-├── manuscript.md, checklist.json
-├── revision/           # Step 13: round별 코멘트·응답서·diff
-└── audit.jsonl         # 프로젝트 루트가 아닌 .research/ 내부로 이동 (v2 결정)
+research/
+├── 00_materials/       # 원본 불변 보관
+├── 01_pico/ … 13_revision/  # 13개 단계의 정적 README와 산출물
+├── rehearsal/          # NOT REAL DATA, DAG 밖
+└── .system/            # state.json, audit.jsonl, materials.json, desk/, 보고서·체크리스트
 ```
 
 ## 10. NFR
@@ -147,7 +143,7 @@
 | NFR-2 | PHI 로컬 불변: 어떤 기능도 raw 데이터를 외부 전송하지 않음 |
 | NFR-3 | 한국어/영어 대화 지원 (유저 언어 추종) |
 | NFR-4 | 상태 파일은 사람이 읽을 수 있는 JSON/JSONL/MD — 벤더 락인 없음 (이탈 시에도 자산은 유저 것) |
-| NFR-5 | 기존 research-bot `.research/` 프로젝트를 마이그레이션 스크립트 없이 인식 (gate 순번→의미 ID 매핑 내장) |
+| NFR-5 | v1/v2 프로젝트를 판독하고, v2 `.research/` 프로젝트는 P3 작업공표와 P4 확인 뒤 v3 `research/`로 lazy 마이그레이션한다 (gate 순번→의미 ID 매핑 내장) |
 
 ## 11. 포팅 노트
 

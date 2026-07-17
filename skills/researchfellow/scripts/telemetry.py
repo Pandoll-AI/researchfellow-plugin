@@ -38,6 +38,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib import error, request
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+from rf_paths import resolve_state_path
+
 DEFAULT_BASE_URL = "https://researchfellow-mcp.vercel.app"
 TIMEOUT_SECONDS = 1.5
 CONFIG_DIR = Path.home() / ".researchfellow"
@@ -137,7 +142,7 @@ def _append_queue(event: dict) -> None:
 def _project_hash(project_dir: str) -> Optional[str]:
     """sha256(state.json.project_id) — a UUID, never the user-named title."""
     try:
-        with open(os.path.join(project_dir, "state.json"), encoding="utf-8") as f:
+        with open(resolve_state_path(project_dir), encoding="utf-8") as f:
             state = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return None

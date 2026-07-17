@@ -5,8 +5,8 @@ Runs analysis in synthetic or real mode. Computes effect measures (RR, OR),
 fits GLM binomial and Cox PH models when dependencies are available.
 
 Usage:
-    python3 analysis_runner.py --mode synthetic --project-dir .research/ --sap-version v0.1
-    python3 analysis_runner.py --mode real --project-dir .research/ --data-path data.csv --sap-version v0.1
+    python3 analysis_runner.py --mode synthetic --project-dir research/ --sap-version v0.1
+    python3 analysis_runner.py --mode real --project-dir research/ --data-path data.csv --sap-version v0.1
 """
 
 from __future__ import annotations
@@ -26,9 +26,23 @@ from typing import Any, Dict, List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from state_tool import check_real_data_gates, detect_schema
+    from rf_paths import (
+        resolve_analysis_output_dir,
+        resolve_analysis_plan_report_path,
+        resolve_analysis_scripts_dir,
+        resolve_qc_report_path,
+        resolve_rehearsal_analysis_dir,
+        resolve_state_path,
+    )
 except ImportError:  # pragma: no cover - fallback to legacy gates.json path
     check_real_data_gates = None
     detect_schema = None
+    resolve_analysis_output_dir = None
+    resolve_analysis_plan_report_path = None
+    resolve_analysis_scripts_dir = None
+    resolve_qc_report_path = None
+    resolve_rehearsal_analysis_dir = None
+    resolve_state_path = None
 
 
 class MissingDependency(Exception):
@@ -227,7 +241,7 @@ def _fit_cox_time_varying(records: List[Dict]) -> Dict[str, Any]:
 
 
 def run_synthetic(project_dir: str, sap_version: str) -> dict:
-    state_path = os.path.join(project_dir, "state.json")
+    state_path = resolve_state_path(project_dir) if resolve_state_path else os.path.join(project_dir, "state.json")
     project_id = "unknown"
     if os.path.exists(state_path):
         with open(state_path) as f:
@@ -440,7 +454,8 @@ def run_plan(project_dir: str, plan_path: str, data_path: Optional[str] = None) 
         method_spec = json.load(f)
 
     script = emit_analysis_script(method_spec)
-    scripts_dir = os.path.join(project_dir, "analysis", "scripts")
+    scripts_dir = (resolve_analysis_scripts_dir(project_dir) if resolve_analysis_scripts_dir
+                   else os.path.join(project_dir, "analysis", "scripts"))
     os.makedirs(scripts_dir, exist_ok=True)
     script_path = os.path.join(scripts_dir, "analysis.R")
     with open(script_path, "w") as f:
@@ -614,7 +629,7 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
     # Check real-data gates. Prefer state.json v2 via state_tool's shared
     # check_real_data_gates (gate.feasibility/protocol/qc). Fall back to the
     # legacy gates.json {"4","5","9"} logic when state is v1 or absent.
-    state_path = os.path.join(project_dir, "state.json")
+    state_path = resolve_state_path(project_dir) if resolve_state_path else os.path.join(project_dir, "state.json")
     gates_path = os.path.join(project_dir, "gates.json")
 
     state = None
@@ -628,7 +643,7 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
             sys.exit(1)
 
     if (state is not None and check_real_data_gates is not None
-            and detect_schema is not None and detect_schema(state)[0] == "v2"):
+            and detect_schema is not None and detect_schema(state)[0] in ("v2", "v3")):
         ok, missing = check_real_data_gates(state)
         if not ok:
             print(f"ERROR: Missing required real-data gate approvals: {missing}", file=sys.stderr)
@@ -654,7 +669,8 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
         sys.exit(1)
 
     # Check QC
-    qc_path = os.path.join(project_dir, "qc-report.json")
+    qc_path = (resolve_qc_report_path(project_dir) if resolve_qc_report_path
+               else os.path.join(project_dir, "qc-report.json"))
     if os.path.exists(qc_path):
         try:
             with open(qc_path) as f:
@@ -684,7 +700,7 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Run statistical analysis")
     parser.add_argument("--mode", required=True, choices=["synthetic", "real", "plan", "rehearsal"])
-    parser.add_argument("--project-dir", required=True, help="Path to .research/ directory")
+    parser.add_argument("--project-dir", required=True, help="Path to the project directory")
     parser.add_argument("--sap-version", default="v0.1")
     parser.add_argument("--data-path", help="Path to real data (required for real mode)")
     parser.add_argument("--plan-path", help="Path to analysis-plan.json (required for plan mode)")
@@ -701,7 +717,8 @@ def main():
             print("ERROR: --plan-path required for plan mode", file=sys.stderr)
             sys.exit(1)
         report = run_plan(args.project_dir, args.plan_path, args.data_path)
-        report_path = os.path.join(args.project_dir, "analysis", "plan-report.json")
+        report_path = (resolve_analysis_plan_report_path(args.project_dir) if resolve_analysis_plan_report_path
+                       else os.path.join(args.project_dir, "analysis", "plan-report.json"))
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
         with open(report_path, "w") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
@@ -714,7 +731,10 @@ def main():
     if args.mode == "rehearsal":
         # Physically separated tree — rehearsal outputs can never collide with
         # real artifacts (state-machine.md "Outside the DAG").
-        output_dir = os.path.join(args.project_dir, "rehearsal", "analysis")
+        output_dir = (resolve_rehearsal_analysis_dir(args.project_dir) if resolve_rehearsal_analysis_dir
+                      else os.path.join(args.project_dir, "rehearsal", "analysis"))
+    elif resolve_analysis_output_dir is not None:
+        output_dir = resolve_analysis_output_dir(args.project_dir, args.mode)
     else:
         output_dir = os.path.join(args.project_dir, "analysis", args.mode)
     os.makedirs(output_dir, exist_ok=True)

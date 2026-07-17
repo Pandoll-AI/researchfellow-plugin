@@ -19,7 +19,7 @@
 파일별 분류 질문 억제와 충돌하지 않습니다.
 
 유저가 "이게 다예요"처럼 종료를 선언하면, 먼저 P3 작업공표를 한 줄로 합니다. 무엇을
-일괄 스캔하는지, 결과가 `.research/scan-report.json`과 `.research/materials/`에 생긴다는 점,
+일괄 스캔하는지, 결과가 `research/.system/scan-report.json`과 `research/00_materials/`에 생긴다는 점,
 대략 소요를 함께 알립니다. 파일·디렉토리만 `--input` 반복 인자로 넘기고, 붙여넣은
 PMID/DOI/URL은 쉼표로 모아 하나의 `--paste-refs` 값으로 넘깁니다. 식별자를 `--input`으로
 넘기지 않습니다. 이어서 접수 목록 전체를 **한 번만** 배치 스캔하고, 아래 파이프라인의
@@ -50,9 +50,9 @@ Exactly as the CLI defines (`scripts/material_scanner.py`):
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/material_scanner.py \
     --input <file|dir> [--input <file|dir> ...] \
     [--paste-refs "PMID:38812345, 10.1001/jama.2024.1234"] \
-    --project-dir .research \
+    --project-dir research \
     [--no-copy] [--phi-screen] \
-    --output .research/scan-report.json
+    --output research/.system/scan-report.json
 ```
 
 - `--input` is repeatable (files or directories). `--paste-refs` accepts loose PMIDs/DOIs.
@@ -61,7 +61,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/material_scanner.py 
   through the `phi_detect` engine **always, independent of this flag** — hits are replaced
   with `[MASKED:<rule_id>]` placeholders before the excerpt enters the report, and intake
   continues (mask-only policy).
-- Originals are copied to `materials/<sha256[:12]>_<name>` unless `--no-copy`.
+- Originals are copied to `00_materials/<sha256[:12]>_<name>` unless `--no-copy`.
 - Output `scan-report.json`: `entries[]` (each with `format`, `structure`,
   `rule_role_hint{role,rule,certainty}`, `identifiers`, `lineage_pre`, `needs_llm`,
   `excerpt_source`, `phi`), `pasted_refs[]`, `version_groups{}`, `llm_batch_needed[]`.
@@ -83,7 +83,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/material_scanner.py 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/phi_screener.py \
     --data-path <csv|xlsx|text> \
-    --output .research/phi-report_<material_id>.json
+    --output research/.system/phi-report_<material_id>.json
 ```
 
 Exit `0 clean / 1 warning / 2 critical`. Report holds only
@@ -243,7 +243,7 @@ representatives gathered into one batch confirm row; questions last), then discu
 ### Gap-verdict decision rule (FR-M8)
 
 For a proposed arrival step N, after reverse-fill, run
-`state_tool can-enter --project-dir .research --step N`. **If it still returns exit 2, the
+`state_tool can-enter --project-dir research --step N`. **If it still returns exit 2, the
 gap is large** — do not proceed unilaterally; force the interactive interview branch:
 
 > "문헌이 부족하니 **문헌 검색부터 같이 할까요**, 아니면 가지고 계신 논문이 더 있나요?"

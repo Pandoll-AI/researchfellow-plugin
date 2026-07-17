@@ -53,6 +53,32 @@ def test_draft_downstream_invariant(run_script, fixtures_dir):
     assert hits[0]["artifact"] == "protocol" and hits[0]["downstream"] == "sap"
 
 
+def test_v3_draft_downstream_invariant(run_script, tmp_path, fixtures_dir):
+    state = json.loads((fixtures_dir / "state" / "v2_draft_downstream" / "state.json").read_text())
+    state["schema_version"] = 3
+    system = tmp_path / ".system"
+    system.mkdir()
+    (system / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    proc = run_script(STATE, "validate", "--project-dir", str(tmp_path))
+    assert proc.returncode == 1
+    assert any(v["invariant"] == "draft_has_no_valid_downstream" for v in json.loads(proc.stdout)["violations"])
+
+
+def test_unsupported_schema_fails_validate_and_can_enter_closed(run_script, tmp_path):
+    (tmp_path / "state.json").write_text(json.dumps({
+        "schema_version": 99,
+        "gates": {"gate.qc": {"status": "approved"}},
+    }), encoding="utf-8")
+    validate = run_script(STATE, "validate", "--project-dir", str(tmp_path))
+    assert validate.returncode == 1
+    assert any(v["invariant"] == "supported_schema_version" for v in json.loads(validate.stdout)["violations"])
+    can_enter = run_script(STATE, "can-enter", "--project-dir", str(tmp_path), "--step", "10")
+    assert can_enter.returncode == 2
+    assert json.loads(can_enter.stdout)["allowed"] is False
+    gate_check = run_script(STATE, "gate-check", "--project-dir", str(tmp_path), "--for", "real-analysis")
+    assert gate_check.returncode == 2
+
+
 @pytest.mark.parametrize(
     "fixture,ok,missing",
     [

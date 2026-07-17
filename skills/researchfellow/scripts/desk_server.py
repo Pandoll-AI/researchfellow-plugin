@@ -49,6 +49,8 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
+from rf_paths import resolve_desk_dir
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "..", "templates", "desk", "desk.html")
 PORT_CANDIDATES = [4321] + list(range(3000, 5000))
@@ -237,7 +239,7 @@ def serve(args: argparse.Namespace) -> int:
         print("ERROR: payload file missing or unreadable", file=sys.stderr)
         return 1
 
-    desk_dir = os.path.join(args.project_dir, "desk")
+    desk_dir = resolve_desk_dir(args.project_dir)
     os.makedirs(desk_dir, exist_ok=True)
     session_path = os.path.join(desk_dir, f"session-{args.session_id}.json")
     answers_path = os.path.join(desk_dir, f"answers-{args.session_id}.json")
@@ -295,7 +297,7 @@ def main() -> None:
                         help="Print {likely_headless, signals} as JSON and exit 0")
     parser.add_argument("--view", choices=("s1_interview", "dashboard"))
     parser.add_argument("--payload", help="Path to the payload JSON the LLM prepared")
-    parser.add_argument("--project-dir", default=".research")
+    parser.add_argument("--project-dir", default="research")
     parser.add_argument("--session-id", help="Caller-chosen id — answer/session file names derive from it")
     parser.add_argument("--port-start", type=int, default=4321)
     parser.add_argument("--timeout-min", type=float, default=DEFAULT_TIMEOUT_MIN)

@@ -1,10 +1,10 @@
-# State Machine v2 — Artifact DAG
+# State Machine v3 — Artifact DAG
 
 > Read this before entering any step, reversing any gate, or importing material.
 > The deterministic judge is `scripts/state_tool.py`; every table below is mirrored
 > as a module constant there and **must stay identical** (review checkpoint).
 
-## v2 Overview — the `current_step` cursor is gone
+## v2/v3 Overview — the `current_step` cursor is gone
 
 v1 advanced a single `current_step` cursor: step N could start only when the cursor
 sat on N. ResearchFellow enters at *any* stage (a half-written draft, a bare dataset,
@@ -22,21 +22,21 @@ advisory labels (FR-E6), not a lock.
 - `artifacts.*.validity == "draft"` (imported, unverified) does **not** satisfy a
   `[req]` edge until the Intake Gate promotes it to `valid`.
 
-## state.json v2 schema
+## state.json v3 schema
 
-Single file (`.research/state.json`, NFR-4). The v1 `gates.json` split is folded back
+Single file (`research/.system/state.json`, NFR-4). The v1 `gates.json` split is folded back
 in. Gate keys are semantic ids; the v1 ordinal is preserved as `legacy_id`.
 
-Top-level fields: `schema_version` (=2), `project_id` (uuid4, telemetry attribution
+Top-level fields: `schema_version` (=3), `project_id` (uuid4, telemetry attribution
 only), `project_name`, `research_card` (nullable; PICO 확정·변경 시 갱신, FR-I2),
 `created_at`, `entry_point`, `execution_mode`
 (`planning` | `real_data`), `focus_step`, `next_action`, `steps`, `artifacts`, `gates`,
 `rehearsal`, `blockers`. See `templates/project-init.json` for the empty initializer.
 
 **Outside the DAG (never registered as artifacts, never a `[req]`/gate input):**
-`.research/compliance-checklist.json` (self-attested only — no deterministic
-consequence), `.research/desk/` (Desk sessions/answers), and the entire
-`.research/rehearsal/` tree (synthetic practice outputs — physically separated from
+`research/.system/compliance-checklist.json` (self-attested only — no deterministic
+consequence), `research/.system/desk/` (Desk sessions/answers), and the entire
+`research/rehearsal/` tree (synthetic practice outputs — physically separated from
 real artifacts; rehearsal activity never flips `execution_mode` to `real_data` and
 never touches `steps.*.status`).
 
@@ -62,6 +62,52 @@ Artifact entry shape:
               "produced_by_step": 5, "version": 1, "verified_at": null }
 ```
 
+## v3 visible layout mirror
+
+`scripts/rf_paths.py` is the single source for `STEP_DIRS`, `ARTIFACT_DIRS`, and
+`SYSTEM_DIR`. The layout table below **must stay identical to those module constants**,
+using the same review convention as the module-constant tables in this document.
+
+| Step | Folder | Registry artifacts |
+|---|---|---|
+| 1 | `01_pico/` | idea |
+| 2 | `02_literature/` | literature (`02_literature/literature/`) |
+| 3 | `03_evidence_table/` | evidence_table |
+| 4 | `04_variables/` | variables |
+| 5 | `05_protocol/` | protocol |
+| 6 | `06_sap/` | sap |
+| 7 | `07_shells/` | shells (`07_shells/shells/`) |
+| 8 | `08_dry_run/` | synthetic_results (`08_dry_run/synthetic_results/`) |
+| 9 | `09_data_qc/` | extraction_plan, qc_report |
+| 10 | `10_analysis/` | real_results (`10_analysis/real_results/`) |
+| 11 | `11_manuscript/` | manuscript, checklist |
+| 12 | `12_submission/` | submission_package (`12_submission/submission_package/`) |
+| 13 | `13_revision/` | revision (`13_revision/`) |
+
+Registry-path mirror (also `rf_paths.ARTIFACT_DIRS`):
+
+| Registry artifact | Path |
+|---|---|
+| `idea` | `01_pico/` |
+| `literature` | `02_literature/literature/` |
+| `evidence_table` | `03_evidence_table/` |
+| `variables` | `04_variables/` |
+| `protocol` | `05_protocol/` |
+| `sap` | `06_sap/` |
+| `shells` | `07_shells/shells/` |
+| `synthetic_results` | `08_dry_run/synthetic_results/` |
+| `extraction_plan` | `09_data_qc/` |
+| `qc_report` | `09_data_qc/` |
+| `real_results` | `10_analysis/real_results/` |
+| `manuscript` | `11_manuscript/` |
+| `checklist` | `11_manuscript/` |
+| `submission_package` | `12_submission/submission_package/` |
+| `revision` | `13_revision/` |
+
+System records live under `research/.system/`; originals are immutable in
+`research/00_materials/`. The v1 and v2 readers remain supported. A v2 project is
+lazily migrated only after the P3 announcement and P4 confirmation in `SKILL.md`.
+
 ## Artifact DAG
 
 `[req]` = required (absent/draft/invalidated ⇒ entry blocked, deterministic).
@@ -81,7 +127,7 @@ Artifact entry shape:
 | 10 | sap[req], qc_report[req] | **qc(hard)** (+ step-9 hard 2 stay approved) | real_results |
 | 11 | real_results[req], protocol[req], sap[req], evidence_table[rec] | results(soft) | manuscript, checklist |
 | 12 | manuscript[req], checklist[req] | manuscript(soft) | submission_package |
-| 13 | manuscript[req] + reviewer_comments material | — | revision/round-N/ (loops) |
+| 13 | manuscript[req] + reviewer_comments material | — | 13_revision/round-N/ (loops) |
 
 **Entry rule:** `enterable(N) ⇔ ∀a ∈ req(N): validity == "valid" ∧ ∀g ∈ hard_gates(N): approved`.
 soft gates and `[rec]` are resolved by the LLM in conversation; `[req]` and hard gates
@@ -189,7 +235,7 @@ recommended, numeric claims blocked.
 - On open, interpret via the mapping below and keep working. **At the next state
   change**, atomically rewrite the whole file to v2 (`SCHEMA_UPGRADED` event). The
   `artifacts` registry is reconstructed from filesystem existence + step status.
-- The root `audit.jsonl` is left in place; new events append to `.research/audit.jsonl`.
+- The root `audit.jsonl` is left in place; new events append to `research/.system/audit.jsonl`.
 - Because v1 has no registry, `can-enter` reconstructs validity with:
   **producing step `completed` ∧ that step's artifact file exists in the project dir
   ⇒ `valid`** (v1 has no `draft`).
@@ -217,7 +263,7 @@ Real-data hard gates in v1 are keys `4`, `5`, `9`.
 
 1. ✓ A **hard gate** is never `retroactive:true`.
 2. ✓ At most **one** step `in_progress`.
-3. ✓ A `draft` artifact never has a `valid` structural downstream (v2 registry).
+3. ✓ A `draft` artifact never has a `valid` structural downstream (v2/v3 registry).
 4. ✓ No v1/v2 **hybrid** state (numeric keys with `schema_version`, or vice-versa).
 5. Gate approval is **immutable** — re-review creates a new entry, never edits in place.
 6. `audit.jsonl` is **append-only**, never modified.
@@ -225,8 +271,8 @@ Real-data hard gates in v1 are keys `4`, `5`, `9`.
 
 ## Audit events (FR-W9)
 
-Location: `.research/audit.jsonl` (moved from the project root in v2; a v1 root
-`audit.jsonl` is left untouched and appended to under `.research/`).
+Location: `research/.system/audit.jsonl` (moved from the project root in v2; a v1 root
+`audit.jsonl` is left untouched and appended to under `research/.system/`).
 
 Existing: `PROJECT_INIT`, `STEP_STARTED`, `STEP_COMPLETED`, `GATE_APPROVED`,
 `GATE_REJECTED`, `GATE_CHANGES_REQUESTED`, `ARTIFACT_CREATED`, `ARTIFACT_UPDATED`.
@@ -240,10 +286,10 @@ New (v2): `ENTRY_POINT`, `ARTIFACT_IMPORTED`, `ARTIFACT_REVERSE_FILLED`,
 Read-only judge, stdlib only, never writes.
 
 ```
-state_tool.py validate   --project-dir .research/            # exit 0 / 1 ; {schema, violations[]}
-state_tool.py can-enter  --project-dir .research/ --step N   # exit 0 / 2 ; {allowed, missing_artifacts, draft_artifacts, missing_hard_gates, warnings}
-state_tool.py gate-check --project-dir .research/ --for real-analysis  # exit 0 / 2 ; {ok, missing}
-state_tool.py cascade    --project-dir .research/ --changed <artifact>  # exit 0   ; {invalidate_artifacts, reset_steps, reset_gates}
+state_tool.py validate   --project-dir research/            # exit 0 / 1 ; {schema, violations[]}
+state_tool.py can-enter  --project-dir research/ --step N   # exit 0 / 2 ; {allowed, missing_artifacts, draft_artifacts, missing_hard_gates, warnings}
+state_tool.py gate-check --project-dir research/ --for real-analysis  # exit 0 / 2 ; {ok, missing}
+state_tool.py cascade    --project-dir research/ --changed <artifact>  # exit 0   ; {invalidate_artifacts, reset_steps, reset_gates}
 ```
 
 - Works on both v2 and v1 state.json (v1 interpreted through the mapping tables above).
@@ -258,8 +304,8 @@ Step 13 (Revision Loop) is the only re-enterable step. Each reviewer round appen
 entry to `steps.13.rounds`:
 
 ```json
-{ "round": 1, "comments_material": "m-012", "response_letter": "revision/round-1/response.md",
-  "diff": "revision/round-1/diff.md", "closed_at": null }
+{ "round": 1, "comments_material": "m-012", "response_letter": "13_revision/round-1/response.md",
+  "diff": "13_revision/round-1/diff.md", "closed_at": null }
 ```
 
 Entering round N requires `manuscript[req]` valid plus a `reviewer_comments` material.

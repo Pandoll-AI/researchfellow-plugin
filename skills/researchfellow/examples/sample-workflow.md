@@ -39,7 +39,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/pubmed_search.py \
   --email researcher@hospital.org \
   --retmax 30 \
   --mindate 2018/01/01 \
-  --output .research/literature/
+  --output research/02_literature/literature/
 ```
 
 Found 847 results, retrieved top 30.
@@ -91,7 +91,7 @@ Generated: Table 1 (baseline), Table 2 (primary results), Table 3 (subgroups), F
 ## Step 8: Synthetic Dry-Run
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py --mode synthetic --project-dir .research/ --sap-version v0.1
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py --mode synthetic --project-dir research/ --sap-version v0.1
 ```
 
 Output: Pipeline verified. Tables populated with synthetic data. **NOT REAL DATA** watermark applied.
@@ -120,7 +120,7 @@ QC: 0 temporal violations, 3.2% missing BMI, 12,450 patients, 892 events.
 ## Step 10: Real Analysis
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py --mode real --project-dir .research/ --data-path extracted_cohort.csv --sap-version v0.1
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py --mode real --project-dir research/ --data-path extracted_cohort.csv --sap-version v0.1
 ```
 
 Primary result: HR 0.78 (95% CI 0.68-0.89, p<0.001).

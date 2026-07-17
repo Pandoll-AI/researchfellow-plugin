@@ -88,7 +88,7 @@ npm install -g @anthropic-ai/claude-code
 /rf 패혈증 환자에서 스타틴 사용과 사망률의 관련성을 보고 싶어요
 ```
 
-이후는 대화입니다. 진행 상황은 폴더 안 `.research/`에 자동 저장되므로,
+이후는 대화입니다. 진행 상황은 보이는 `research/` 폴더에 자동 저장되므로,
 언제든 껐다가 다시 `/rf`만 치면 **"이어서: ○○○"** 하고 이어집니다.
 
 > 처음 실행할 때 한 번, **익명 사용 통계 수집 동의**를 요청합니다 — 보내는 것은
@@ -111,7 +111,7 @@ npm install -g @anthropic-ai/claude-code
 ## 데이터가 아직 없어도 됩니다 (모의 완주)
 
 실제 데이터가 준비되기 전이라면, 동의를 받고 **가짜 데이터를 생성해 9~13단계까지 전
-과정을 미리 체험**할 수 있습니다. 연습 산출물은 `.research/rehearsal/`에 따로 보관되고
+과정을 미리 체험**할 수 있습니다. 연습 산출물은 `research/rehearsal/`에 따로 보관되고
 모든 파일에 "NOT REAL DATA" 워터마크가 박히며 — 실수로라도 논문 결과로 쓸 수 없도록
 시스템이 실제 분석 입력에서 이를 거부합니다.
 
@@ -126,7 +126,7 @@ npm install -g @anthropic-ai/claude-code
 <tr>
 <td width="38%" valign="top" align="center">
 <img src="assets/save-folder-structure.jpeg" alt="단계별 산출물 폴더 구조" width="100%">
-<br><b>① 산출물이 쌓이는 .research/ 폴더</b><br><sub>PICO·프로토콜·SAP·QC·분석·원고까지, 각 단계의<br>산출물과 결정 기록(audit)이 한 폴더에 축적</sub>
+<br><b>① 산출물이 쌓이는 research/ 폴더</b><br><sub>PICO·프로토콜·SAP·QC·분석·원고까지, 각 단계의<br>산출물과 결정 기록(audit)이 한 폴더에 축적</sub>
 </td>
 <td width="62%" valign="top" align="center">
 <img src="assets/sample-manuscript.jpeg" alt="자동 생성된 원고 예시" width="100%">
