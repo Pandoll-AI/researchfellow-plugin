@@ -60,6 +60,25 @@ STEP_NAMES: Dict[int, str] = {
     13: "Revision Loop",
 }
 
+# User-facing Korean action labels.  This is the single source used by the
+# resume view, Desk payload, and progress renderer; it must mirror the table in
+# references/entry-points.md (enforced by tests/test_drift.py).
+STEP_LABELS_KO: Dict[int, str] = {
+    1: "PICO 확정",
+    2: "문헌 검색",
+    3: "근거표 작성",
+    4: "변수 정의",
+    5: "프로토콜 작성",
+    6: "SAP 작성",
+    7: "표·그림 틀 만들기",
+    8: "합성 드라이런",
+    9: "데이터 QC",
+    10: "실 분석 실행",
+    11: "원고 작성",
+    12: "제출 패키지 정리",
+    13: "리뷰 대응 (round N)",
+}
+
 # Which step produces which artifact (state.json artifacts registry keys).
 # Must match state-machine.md "산출" column.
 ARTIFACT_PRODUCED_BY: Dict[str, int] = {

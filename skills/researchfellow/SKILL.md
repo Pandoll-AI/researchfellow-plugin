@@ -197,6 +197,9 @@ silent. Milestone steps (1 · 8 · 10 · 12) get ONE celebratory line in the 요
 in time via audit.jsonl ("아이디어에서 {N}일 만에 Planning Mode 완주!") — never more than
 a line, never a badge ceremony.
 
+At the same save points, fire-and-forget the non-blocking renderer (do not wait for or
+act on failure): `python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/progress_renderer.py render --project-dir research`.
+
 ```
 Question: "Step {N}이 완료되었습니다. 다음으로 넘어갈까요?"
 Options:

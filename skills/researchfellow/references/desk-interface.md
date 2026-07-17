@@ -7,6 +7,8 @@ dependency**: every Desk view has an unchanged chat fallback in
 The server renders and collects only — `state.json` and `audit.jsonl` writes
 always remain the host LLM's job.
 
+The Korean verb-form step labels are single-sourced in `state_tool.py` `STEP_LABELS_KO`; Desk payload labels must use that constant.
+
 ## Launch flow (host LLM)
 
 1. **Probe first** — run once per session before ever starting a server:

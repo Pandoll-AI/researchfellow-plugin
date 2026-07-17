@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-15T12:00:00Z","event":"STEP_COMPLETED","step":1,"details":{}}
+{"timestamp":"2026-07-15T12:01:00Z","event":"ARTIFACT_IMPORTED","details":{"artifact":"idea","path":"idea.json","version":2}}

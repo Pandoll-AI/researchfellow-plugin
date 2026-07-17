@@ -1,0 +1,32 @@
+{
+  "schema_version": 3,
+  "project_name": "Visibility Fixture",
+  "research_card": "수술 전 스타틴 사용과 수술 후 섬망의 연관성을 검토합니다.",
+  "next_action": {"label": "ignored free text", "step": 6},
+  "steps": {
+    "1": {"status": "completed", "name": "PICO Structuring"},
+    "2": {"status": "imported", "name": "Literature Scoping"},
+    "3": {"status": "in_progress", "name": "Evidence Table"},
+    "4": {"status": "skipped", "name": "Variable Definition"},
+    "5": {"status": "blocked", "name": "Protocol", "blocked_reason": "endpoint approval required"},
+    "6": {"status": "pending", "name": "SAP"},
+    "7": {"status": "pending", "name": "Table/Figure Shells"},
+    "8": {"status": "pending", "name": "Synthetic Dry-Run"},
+    "9": {"status": "pending", "name": "Data Prep & QC"},
+    "10": {"status": "pending", "name": "Real Analysis"},
+    "11": {"status": "pending", "name": "Manuscript"},
+    "12": {"status": "pending", "name": "Submission Package"},
+    "13": {"status": "in_progress", "name": "Revision Loop", "rounds": [{"round": 2, "status": "in_progress"}]}
+  },
+  "gates": {
+    "gate.go-no-go": {"status": "approved"},
+    "gate.novelty": {"status": "pending"},
+    "gate.endpoint": {"status": "rejected"},
+    "gate.feasibility": {"status": "approved"},
+    "gate.protocol": {"status": "pending"},
+    "gate.qc": {"status": "pending"},
+    "gate.results": {"status": "changes_requested"},
+    "gate.manuscript": {"status": "pending"}
+  },
+  "blockers": ["endpoint approval required"]
+}

@@ -60,7 +60,7 @@
 | FR-I4 | 수집 루프: 접수(적재+1줄 이해+"더 있으신가요?") → 종료 선언 → 배치 스캔 1회 → 브리핑 |
 | FR-I5 | 작업공표: 자율 작업 전 1줄(무엇/결과 위치/대략 소요 — 기존 duration 표 재사용) |
 | FR-I6 | 보고(P5)에는 산출물 폴더 경로 필수. 단계 완료 시 `SUMMARY.md` 영속화 **(SUMMARY.md는 Phase 4; 현재 미구현)** |
-| FR-I7 | `PROGRESS.md`·`RESEARCH_LOG.md`는 progress_renderer가 결정론적으로 전체 재생성하고, 모든 저장 지점에서 비차단으로 실행 **(Phase 3; 현재 미구현)** |
+| FR-I7 | `PROGRESS.md`·`RESEARCH_LOG.md`는 progress_renderer가 결정론적으로 전체 재생성하고, 모든 저장 지점에서 비차단으로 실행 |
 | FR-I8 | 차단설명 4요소(무엇/왜-연구 언어/해제 조건/지금 가능한 것)를 모든 차단 순간에 적용 |
 | FR-I9 | PROJECT_INIT 시 13단계 폴더+정적 README+`.gitignore`(materials·desk)를 사전 생성하고, 상태 표기는 PROGRESS.md 단일화 |
 | FR-I10 | 표기 언어: 폴더·파일명·표·피겨·상태 라벨은 영어, 설명 산문은 한국어 (P-F) |
@@ -90,6 +90,8 @@
 | FR-T5 | `material_scanner` (신규) | 분류 Stage 0~1: 형식 판별 + 구조 스캔 + tabular 프로파일 + DOI/PMID 추출 |
 | FR-T6 | `phi_screener` (신규) | FR-M10의 규칙 스캔. 독립 실행 가능 (분류와 분리) |
 | FR-T7 | 모든 스크립트는 stdlib 우선. 네트워크 접근은 `pubmed_search`(문헌 검색)와 `telemetry`(동의 기반 퍼널 카운터, fire-and-forget — FR-P)만. 그 외 오프라인 동작 |
+| FR-T8 | `progress_renderer` | state.json·audit.jsonl에서 `PROGRESS.md`·`RESEARCH_LOG.md`를 결정론적으로 전체 재생성하며, 어떤 오류에도 exit 0으로 비차단 동작 |
+| FR-T9 | `project_layout` | schema v3의 보이는 13단계 스캐폴드를 만들고 legacy 프로젝트를 안전하게 lazy migration |
 
 ## 7. FR-G — 가드레일 (전부 무료)
 

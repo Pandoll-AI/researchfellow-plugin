@@ -18,6 +18,7 @@ _ANCHOR_RE = re.compile(r"^\|\s*(gate\.[\w-]+)\s*\|\s*(\w+)\s*\|\s*$")
 # | 9 | gate.qc | hard |
 _V1MAP_RE = re.compile(r"^\|\s*(\d+)\s*\|\s*(gate\.[\w-]+)\s*\|\s*(soft|hard)\s*\|")
 _ARTIFACT_PATH_RE = re.compile(r"^\|\s*`([\w_]+)`\s*\|\s*`([^`]+)`\s*\|$")
+_STEP_LABEL_RE = re.compile(r"^\|\s*(1[0-3]|[1-9])\s*\|\s*(.+?)\s*\|$")
 
 
 def _doc_text(references_dir):
@@ -65,6 +66,16 @@ def test_v3_layout_mirror_matches_rf_paths(references_dir):
             if artifact in rf_paths.ARTIFACT_DIRS:
                 doc_paths[artifact] = path.rstrip("/")
     assert doc_paths == rf_paths.ARTIFACT_DIRS
+
+
+def test_step_labels_match_entry_points_mirror(references_dir):
+    """The user-facing Korean verb labels have one executable source."""
+    labels = {}
+    for line in (references_dir / "entry-points.md").read_text(encoding="utf-8").splitlines():
+        match = _STEP_LABEL_RE.match(line.strip())
+        if match:
+            labels[int(match.group(1))] = match.group(2)
+    assert labels == state_tool.STEP_LABELS_KO
 
 
 # --- checklist JSON coherence (single-source integrity) ---

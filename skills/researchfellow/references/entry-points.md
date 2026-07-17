@@ -169,6 +169,9 @@ Step 1 ~15분 · 2 ~20분 · 3 ~20분 · 4 ~15분 · 5 ~30분 · 6 ~30분 · 7 ~
 
 **Verb-form label table (fixed, 13 entries):**
 
+This table is a mirror of `state_tool.py` `STEP_LABELS_KO` and must remain
+identical (enforced by the drift test).
+
 | Step | 라벨 |
 |---|---|
 | 1 | PICO 확정 |
@@ -204,7 +207,9 @@ Then offer: `[이어서 진행] [상태 자세히] [다른 작업]`, and always 
 summarized). `다른 작업` → surface the 5+1 cards for a new project.
 
 `next_action` must be re-derived and saved at **every** state-change save point (step
-completion, gate handling) — this is the silent 4th move of Step Transitions.
+completion, gate handling) — this is the silent 4th move of Step Transitions. At the
+same save point, fire-and-forget `progress_renderer.py render --project-dir research`
+so the persistent progress view is regenerated without further LLM judgment.
 
 ---
 

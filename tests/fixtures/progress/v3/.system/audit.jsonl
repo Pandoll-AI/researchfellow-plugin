@@ -1,0 +1,4 @@
+{"timestamp":"2026-07-16T09:00:00Z","event":"PROJECT_INIT","details":{"note":"Patient 123"}}
+{"timestamp":"2026-07-17T10:30:00Z","event":"ARTIFACT_CREATED","step":5,"details":{"artifact":"protocol","path":"05_protocol/protocol.md","version":1,"note":"Patient 123"}}
+{"timestamp":"2026-07-17T10:31:00Z","event":"GATE_REJECTED","details":{"gate":"gate.endpoint","reason":"Patient 123"}}
+{"timestamp":"2026-07-17T10:32:00Z","event":"FUTURE_EVENT","details":{"note":"Patient 123"}}

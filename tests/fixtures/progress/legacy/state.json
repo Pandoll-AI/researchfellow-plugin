@@ -1,0 +1,13 @@
+{
+  "project_name": "Legacy Fixture",
+  "next_action": {"label": "문헌 검색", "step": 2},
+  "steps": {
+    "1": {"status": "completed", "name": "PICO Structuring"},
+    "2": {"status": "pending", "name": "Literature Scoping"}
+  },
+  "gates": {
+    "1": {"status": "approved"},
+    "4": {"status": "pending"}
+  },
+  "blockers": []
+}
