@@ -4,8 +4,8 @@
 > Lancet, Annals of Internal Medicine) for retrospective/observational studies.
 > This is a style guide, **not** copyrighted text — no article content is
 > reproduced. Use it to shape voice, structure, and ordering toward a target
-> venue. Generic exemplar style is free; venue-specific optimization and reviewer
-> anticipation are the paid tier (journal_fit / reviewer_playbook).
+> venue. Generic exemplar style, venue-specific optimization, and reviewer
+> anticipation are available to all users (journal_fit / reviewer_playbook).
 
 ## How to use
 Pick the closest venue's conventions, then write the manuscript template

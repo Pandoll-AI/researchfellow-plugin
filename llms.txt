@@ -11,7 +11,7 @@ on a user's behalf. Follow the steps in order; each has a verification command.
 
 ## Identity
 
-- Plugin name: `researchfellow` (manifest: `.claude-plugin/plugin.json`, v0.1.x)
+- Plugin name: `researchfellow` (manifest: `.claude-plugin/plugin.json`, v0.3.0)
 - One skill: `skills/researchfellow/SKILL.md` (router; details live in `references/`)
 - Two command names (aliases, identical behavior): `/rf` (primary) and `/researchfellow`.
   Either may be namespaced (`/researchfellow:rf`) if another skill/plugin claims the

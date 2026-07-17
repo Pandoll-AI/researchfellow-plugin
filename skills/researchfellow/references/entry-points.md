@@ -120,7 +120,7 @@ Almost no dedicated logic — S3 rides the common Layer 2 pipeline.
    step 11 `imported`.
 3. Re-enter **Step 11** for revision.
 4. *The full manuscript-diagnosis report is deferred to P1* — for P0, do the intake +
-   re-entry and note that a deeper diagnosis is a paid-tier depth.
+   re-entry and note that a deeper diagnosis is a later P1 scope.
 
 ## S5 — Reviewer response (arrival mapping only)
 
