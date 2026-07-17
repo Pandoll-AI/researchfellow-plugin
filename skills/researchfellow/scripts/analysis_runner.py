@@ -600,7 +600,7 @@ def _carries_synthetic_watermark(data_path: str) -> bool:
 def run_rehearsal(project_dir: str, data_path: str, sap_version: str) -> dict:
     """Rehearsal analysis: the same fitting pipeline as real mode, NO gate
     checks (rehearsal is practice, not evidence). Output is watermarked and the
-    caller stores it under .research/rehearsal/ — physically separated from
+    caller stores it under research/rehearsal/ — physically separated from
     real artifacts; state.json steps/artifacts/execution_mode are untouched."""
     counts, glm_fit, cox_fit = _load_and_fit(data_path)
     return {

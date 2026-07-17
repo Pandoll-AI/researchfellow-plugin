@@ -48,12 +48,12 @@ receives only de-identified derivatives. See "Remote Enrichment Points" below.
 Before anything else — **before even checking `research/.system/state.json`** — check whether
 `~/.researchfellow/config.json` exists. If it does, proceed. If not, explain and ask:
 
-연구 내용은 전혀 전송하지 않고, 어느 단계에서 막히는지만 익명으로 세어 개선에 씁니다.
+연구 내용(아이디어·데이터·원고·대화)은 전혀 전송되지 않으며, 진행 단계·진입점·이벤트명·플러그인 버전과 익명 토큰·프로젝트 해시를 집계한 퍼널 카운터로 개선에 씁니다.
 
 ```
-Question: "ResearchFellow는 개선을 위해 '어느 단계에서 시작해 몇 단계까지 도달했는지'
-           단계 번호와 사용 빈도만 익명 토큰으로 기록합니다. 연구 내용(아이디어·데이터·
-           원고·대화)은 전혀 전송되지 않습니다. 사용하려면 이 수집에 대한 동의가 필요합니다."
+Question: "ResearchFellow는 개선을 위해 이벤트명 8종, 진행 단계(1–13), 진입점(S1–S5),
+           플러그인 버전, 익명 토큰, 프로젝트 해시를 퍼널 카운터로 집계합니다. 연구 내용
+           (아이디어·데이터·원고·대화)은 전혀 전송되지 않습니다. 사용하려면 이 수집에 대한 동의가 필요합니다."
 Options:
   - "동의하고 시작" — 익명 토큰을 발급받고 진행합니다
   - "설명 더 보기" — 무엇을 보내고/보내지 않는지 상세히 설명한 뒤 다시 묻습니다
@@ -65,8 +65,9 @@ Options:
   then continue to Initialization routing. Registration failure is fine — the script
   grants an offline grace identity and queues events locally (closed hospital networks);
   never surface a network error, never retry loudly.
-- "설명 더 보기" → 보내는 것: 이벤트명·단계 번호(1-13)·진입점(S1-S5)·버전·익명 토큰.
-  보내지 않는 것: 자유 텍스트, 파일, PICO 내용, 데이터, 원고, 대화. 철회:
+- "설명 더 보기" → 보내는 것: 이벤트명 8종·단계 번호(1-13)·진입점(S1-S5)·플러그인 버전·
+  익명 토큰·프로젝트 해시로 집계한 퍼널 카운터. 보내지 않는 것: 자유 텍스트, 파일, PICO 내용,
+  데이터, 원고, 대화. 철회:
   `telemetry.py revoke` (서버 기록 삭제 + 로컬 동의 파일 제거). 그 후 다시 묻는다.
 - **"종료" → do not proceed with any research work this session.** This is the single
   explicit exception to "do not block; go shallow" — consent is a precondition of use.
@@ -194,14 +195,17 @@ Steps 1–8 = Planning Mode (synthetic/mock, "NOT REAL DATA"). Steps 9–13 = Re
 After completing a step: **요약** (뭘 만들었는지, 파일명 포함) → **다음 안내** (다음 단계가
 뭐고 왜 필요한지 한 문장) → **확인** (AskUserQuestion으로 진행 여부). **보고(P5)에는
 산출물 폴더 경로를 반드시 포함한다.** 첫 무브 요약은 해당 단계 폴더의 `SUMMARY.md`에도
-한국어 산문으로 전체 재작성해 저장하며, 이전 요약을 덮어쓴다. And **update
-`next_action`** at every save point (step complete, gate handled) — this is the 4th move,
+한국어 산문으로 전체 재작성해 저장하며, 이전 요약을 덮어쓴다. 단, rehearsal 활동 중에는 real
+단계 폴더에 어떤 파일도 쓰지 않으며 요약은 `rehearsal/` 아래에만 저장하거나 생략한다. `imported`
+상태로 반입된 단계는 완료 무브가 없으므로 `SUMMARY.md`를 만들지 않는다. And **update
+`next_action`** at every state-save point — this is the 4th move,
 silent. Milestone steps (1 · 8 · 10 · 12) get ONE celebratory line in the 요약, anchored
 in time via audit.jsonl ("아이디어에서 {N}일 만에 Planning Mode 완주!") — never more than
 a line, never a badge ceremony.
 
-At the same save points, fire-and-forget the non-blocking renderer (do not wait for or
-act on failure): `python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/progress_renderer.py render --project-dir research`.
+After every state-save point that appends an event to `audit.jsonl`, fire-and-forget the
+non-blocking renderer (do not wait for or act on failure): `python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/progress_renderer.py render --project-dir <active-project-dir>`,
+where `<active-project-dir>` is the directory resolved during routing (`.research` before migration, `research` after migration).
 
 ```
 Question: "Step {N}이 완료되었습니다. 다음으로 넘어갈까요?"

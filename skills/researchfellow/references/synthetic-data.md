@@ -57,6 +57,9 @@ stay untouched).
   in-band watermark (exit 1) — a rehearsal file cannot masquerade as real data
   even if copied or renamed.
 - Rehearsal emits **no telemetry step events** (the funnel tracks real progress).
+- Rehearsal 활동은 real 단계 폴더에 어떤 파일도 쓰지 않는다. 요약이 필요하면
+  `research/rehearsal/` 아래에만 저장하며, 생략해도 된다.
+- `imported` 상태로 반입된 단계는 완료 무브가 없으므로 `SUMMARY.md`를 만들지 않는다.
 - Ending rehearsal: when real data arrives, run the REAL Step 9 flow from scratch
   (gates and all). `research/rehearsal/` may be kept (practice reference) or
   deleted — either way it never feeds the real pipeline.

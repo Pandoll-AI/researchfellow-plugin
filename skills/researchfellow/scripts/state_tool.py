@@ -61,8 +61,10 @@ STEP_NAMES: Dict[int, str] = {
 }
 
 # User-facing Korean action labels.  This is the single source used by the
-# resume view, Desk payload, and progress renderer; it must mirror the table in
-# references/entry-points.md (enforced by tests/test_drift.py).
+# resume view and progress renderer. The host assembling a Desk payload must
+# take next_action.label from this constant; desk_server only renders that
+# payload. It must mirror the table in references/entry-points.md (enforced by
+# tests/test_drift.py).
 STEP_LABELS_KO: Dict[int, str] = {
     1: "PICO 확정",
     2: "문헌 검색",
@@ -559,7 +561,7 @@ def main() -> None:
 
     for name in ("validate", "can-enter", "gate-check", "cascade"):
         sp = sub.add_parser(name)
-        sp.add_argument("--project-dir", required=True, help="Path to .research/ directory")
+        sp.add_argument("--project-dir", required=True, help="Path to the active project directory")
         if name == "can-enter":
             sp.add_argument("--step", required=True, type=int, help="Target step number (1-13)")
         if name == "gate-check":

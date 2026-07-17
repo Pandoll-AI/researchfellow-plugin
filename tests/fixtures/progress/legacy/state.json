@@ -1,6 +1,9 @@
 {
   "project_name": "Legacy Fixture",
   "next_action": {"label": "문헌 검색", "step": 2},
+  "artifacts": {
+    "idea": {"path": "idea.json"}
+  },
   "steps": {
     "1": {"status": "completed", "name": "PICO Structuring"},
     "2": {"status": "pending", "name": "Literature Scoping"}

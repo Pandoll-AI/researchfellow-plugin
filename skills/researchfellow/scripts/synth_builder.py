@@ -14,7 +14,7 @@ Triple watermark (a copied or renamed file stays recognizably fake):
   1. in-band column `is_synthetic=1` on every row  — travels with the data;
      analysis_runner --mode real refuses any input carrying it,
   2. meta sidecar (<output>.meta.json) with "NOT REAL DATA", seed, spec, consent,
-  3. path convention: outputs live under .research/rehearsal/ (or a filename
+  3. path convention: outputs live under research/rehearsal/ (or a filename
      containing 'synthetic').
 
 Determinism: seed = sha256(canonical-spec | n) unless --seed is given — same
@@ -22,10 +22,10 @@ spec, same rows, byte for byte (hashlib, NOT hash(): PYTHONHASHSEED randomizes
 the latter across processes).
 
 Usage:
-    python3 synth_builder.py --spec-path .research/synth-spec.json --n 500 \
-        --output-csv .research/rehearsal/synthetic_cohort.csv \
-        --output-meta .research/rehearsal/synthetic_cohort.meta.json \
-        --consented-at 2026-07-16T12:00:00Z [--variables-path .research/variables.json] [--seed N]
+    python3 synth_builder.py --spec-path research/rehearsal/synth-spec.json --n 500 \
+        --output-csv research/rehearsal/synthetic_cohort.csv \
+        --output-meta research/rehearsal/synthetic_cohort.meta.json \
+        --consented-at 2026-07-16T12:00:00Z [--variables-path research/04_variables/variables.json] [--seed N]
 
 Exit codes: 0 ok / 1 input error.
 """

@@ -206,10 +206,12 @@ Then offer: `[이어서 진행] [상태 자세히] [다른 작업]`, and always 
 "새 프로젝트 시작". `상태 자세히` → full dashboard (all step statuses + gate states,
 summarized). `다른 작업` → surface the 5+1 cards for a new project.
 
-`next_action` must be re-derived and saved at **every** state-change save point (step
-completion, gate handling) — this is the silent 4th move of Step Transitions. At the
-same save point, fire-and-forget `progress_renderer.py render --project-dir research`
-so the persistent progress view is regenerated without further LLM judgment.
+`next_action` must be re-derived and saved at **every** state-change save point — this
+is the silent 4th move of Step Transitions. After every state-save point that appends an
+event to `audit.jsonl`, fire-and-forget `progress_renderer.py render --project-dir
+<active-project-dir>`, using the directory resolved during routing (`.research` before
+migration, `research` after), so the persistent progress view is regenerated without
+further LLM judgment.
 
 ---
 

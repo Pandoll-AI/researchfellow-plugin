@@ -167,5 +167,5 @@ runner/checklist can consume it:
 ```
 
 Store as `research/10_analysis/analysis-plan.json`, register it as the `analysis_plan` artifact,
-and confirm with the user before Step 9/10. The emitted R script (§runner) is the
+and confirm with the user before Step 9/10. The emitted R script (§8 analysis_plan artifact) is the
 authoritative, reproducible analysis; the local Python fit is a preview.

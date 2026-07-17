@@ -14,7 +14,7 @@ import json
 import os
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from rf_paths import resolve_state_path, resolve_system_file
@@ -89,6 +89,19 @@ def _step_number(value: Any) -> Optional[int]:
     return number if number in STEP_NAMES else None
 
 
+def _round_number(value: Any) -> Optional[int]:
+    """Return a round number without applying the 1–13 step-number bound."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        number = value
+    elif isinstance(value, str) and re.fullmatch(r"[1-9]\d*", value):
+        number = int(value)
+    else:
+        return None
+    return number if number > 0 else None
+
+
 def _status_label(step: Dict[str, Any]) -> str:
     status = step.get("status")
     if status == "blocked":
@@ -128,17 +141,15 @@ def _active_revision_round(state: Dict[str, Any]) -> Optional[int]:
     steps = state.get("steps") if isinstance(state.get("steps"), dict) else {}
     revision = steps.get("13") if isinstance(steps.get("13"), dict) else {}
     rounds = revision.get("rounds") if isinstance(revision.get("rounds"), list) else []
-    active = revision.get("status") == "in_progress"
     active_rounds = [
-        _step_number(item.get("round"))
-        for item in rounds if isinstance(item, dict) and item.get("status") == "in_progress"
+        _round_number(item.get("round"))
+        for item in rounds
+        if isinstance(item, dict) and item.get("closed_at") is None
     ]
-    active = active or bool(active_rounds)
-    if not active:
+    values = [value for value in active_rounds if value is not None]
+    if not values:
         return None
-    all_rounds = [_step_number(item.get("round")) for item in rounds if isinstance(item, dict)]
-    values = [value for value in all_rounds if value is not None]
-    return max(values) if values else 1
+    return max(values)
 
 
 def _gate_entries(state: Dict[str, Any]) -> Iterable[Tuple[str, str, str]]:
@@ -215,10 +226,42 @@ def _safe_gate(details: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _safe_path_version(details: Dict[str, Any]) -> str:
+def _state_path_allowlist(state: Dict[str, Any]) -> set[str]:
+    """Return artifact and revision paths explicitly declared by state.json.
+
+    Audit details are untrusted display input.  Only literal state paths and their
+    literal parent directories may be projected into the human-readable log.
+    """
+    candidates: List[str] = []
+    artifacts = state.get("artifacts") if isinstance(state.get("artifacts"), dict) else {}
+    for entry in artifacts.values():
+        if isinstance(entry, dict) and isinstance(entry.get("path"), str) and entry["path"]:
+            candidates.append(entry["path"])
+    steps = state.get("steps") if isinstance(state.get("steps"), dict) else {}
+    revision = steps.get("13") if isinstance(steps.get("13"), dict) else {}
+    rounds = revision.get("rounds") if isinstance(revision.get("rounds"), list) else []
+    for entry in rounds:
+        if not isinstance(entry, dict):
+            continue
+        for key in ("response_letter", "diff"):
+            value = entry.get(key)
+            if isinstance(value, str) and value:
+                candidates.append(value)
+
+    allowed: set[str] = set()
+    for value in candidates:
+        allowed.add(value)
+        parent = PurePosixPath(value).parent
+        while str(parent) not in ("", "."):
+            allowed.add(str(parent))
+            parent = parent.parent
+    return allowed
+
+
+def _safe_path_version(details: Dict[str, Any], allowed_paths: set[str]) -> str:
     parts: List[str] = []
     path = details.get("path")
-    if isinstance(path, str) and path:
+    if isinstance(path, str) and path in allowed_paths:
         parts.append(path)
     version = details.get("version")
     if isinstance(version, int) and not isinstance(version, bool) and version >= 0:
@@ -226,7 +269,7 @@ def _safe_path_version(details: Dict[str, Any]) -> str:
     return f" ({' '.join(parts)})" if parts else ""
 
 
-def _event_message(event: Dict[str, Any]) -> Optional[str]:
+def _event_message(event: Dict[str, Any], allowed_paths: set[str]) -> Optional[str]:
     event_type = event.get("event")
     if event_type not in KNOWN_EVENTS:
         return None
@@ -256,18 +299,19 @@ def _event_message(event: Dict[str, Any]) -> Optional[str]:
         "SESSION_RESUMED": "연구를 다시 이어서 진행했습니다",
         "SYNTHETIC_DATA_GENERATED": "합성 데이터 드라이런이 준비되었습니다",
     }
-    return messages[event_type] + _safe_path_version(details)
+    return messages[event_type] + _safe_path_version(details, allowed_paths)
 
 
-def render_research_log(events: Iterable[Dict[str, Any]]) -> str:
+def render_research_log(events: Iterable[Dict[str, Any]], state: Dict[str, Any]) -> str:
     lines = ["# RESEARCH_LOG", ""]
     current_date: Optional[str] = None
     rendered = 0
+    allowed_paths = _state_path_allowlist(state)
     for event in events:
         timestamp = event.get("timestamp")
         if not isinstance(timestamp, str) or not _DATE_RE.match(timestamp):
             continue
-        message = _event_message(event)
+        message = _event_message(event, allowed_paths)
         if message is None:
             continue
         date = timestamp[:10]
@@ -290,7 +334,7 @@ def render(project_dir: str) -> None:
     events = _read_audit(audit_path)
     root = Path(project_dir)
     (root / "PROGRESS.md").write_text(render_progress(state), encoding="utf-8")
-    (root / "RESEARCH_LOG.md").write_text(render_research_log(events), encoding="utf-8")
+    (root / "RESEARCH_LOG.md").write_text(render_research_log(events, state), encoding="utf-8")
 
 
 def build_parser() -> argparse.ArgumentParser:

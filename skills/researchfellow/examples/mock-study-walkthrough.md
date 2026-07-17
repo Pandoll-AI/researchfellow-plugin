@@ -1,6 +1,6 @@
 # End-to-end rehearsal — mock retrospective cohort
 
-A full 1→11 dry run of the harness on **synthetic data and a mock hypothesis**
+A full Step 1–12 rehearsal, plus the optional Step 13 revision loop, on **synthetic data and a mock hypothesis**
 (no PHI). It exercises the state machine, the hard gates, the honest analysis
 subsystem, and the reporting coverage screen. Reproduces the P0.5 rehearsal.
 
