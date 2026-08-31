@@ -1,0 +1,43 @@
+{
+  "claims": [
+    {
+      "text": "The IPTW-adjusted hazard ratio was 0.72 (95% CI 0.61-0.85).",
+      "anchor": {
+        "kind": "table",
+        "id": "2"
+      },
+      "sources": [],
+      "status": "verified"
+    },
+    {
+      "text": "*See Table 2 and Figure 1.*",
+      "anchor": {
+        "kind": "figure",
+        "id": "1"
+      },
+      "sources": [],
+      "status": "verified"
+    },
+    {
+      "text": "Smith et al. reported a consistent association (PMID:38812345; doi:10.1001/jama.2024.1234).",
+      "anchor": {
+        "kind": "text",
+        "id": "38812345"
+      },
+      "sources": [
+        {
+          "type": "pmid",
+          "id": "38812345",
+          "verified": true
+        },
+        {
+          "type": "doi",
+          "id": "10.1001/jama.2024.1234",
+          "verified": true
+        }
+      ],
+      "status": "verified"
+    }
+  ],
+  "unmapped": []
+}

@@ -1,0 +1,40 @@
+{
+  "claims": [
+    {
+      "text": "A non-existent trial claimed benefit (PMID:99999999).",
+      "anchor": {
+        "kind": "text",
+        "id": "99999999"
+      },
+      "sources": [
+        {
+          "type": "pmid",
+          "id": "99999999",
+          "verified": false
+        }
+      ],
+      "status": "unverified"
+    },
+    {
+      "text": "Smith et al. (PMID:38812345) was cited with the wrong DOI 10.9999/wrong.doi.",
+      "anchor": {
+        "kind": "text",
+        "id": "38812345"
+      },
+      "sources": [
+        {
+          "type": "pmid",
+          "id": "38812345",
+          "verified": true
+        },
+        {
+          "type": "doi",
+          "id": "10.9999/wrong.doi",
+          "verified": false
+        }
+      ],
+      "status": "mismatch"
+    }
+  ],
+  "unmapped": []
+}

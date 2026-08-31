@@ -1,0 +1,37 @@
+{
+  "schema_version": "1",
+  "version": "v0.1",
+  "created_at": "2026-09-01",
+  "papers": [
+    {
+      "pmid": "38812345",
+      "doi": "10.1001/jama.2024.1234",
+      "title": "Macrolide combination therapy and 30-day mortality",
+      "authors": "Smith J",
+      "year": "2024",
+      "journal": "JAMA",
+      "design": "cohort",
+      "population": "",
+      "sample_size": null,
+      "exposure": "",
+      "comparator": "",
+      "outcome": "",
+      "effect_measure": "HR",
+      "effect_size": 0.74,
+      "ci_95": [0.60, 0.91],
+      "p_value": null,
+      "direction": "supporting",
+      "covariates_adjusted": [],
+      "follow_up": "",
+      "limitations": [],
+      "quality_score": null,
+      "relevance_to_question": ""
+    }
+  ],
+  "summary": {
+    "total_papers": 1,
+    "effect_direction_consistency": "",
+    "identified_gaps": [],
+    "novelty_assessment": ""
+  }
+}

@@ -1,0 +1,3 @@
+# Results
+
+The crude OR was 1.45 (95% CI 1.10-1.90) in the unmatched sample.
