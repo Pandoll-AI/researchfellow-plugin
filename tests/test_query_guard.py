@@ -22,6 +22,10 @@ import pytest
 SCRIPT = "query_guard.py"
 CONTRACT_KEYS = {"columns", "dtypes", "result", "suppressed", "suppression_note", "warnings"}
 SUPPRESSION_NOTE = "1건 결과는 공개하지 않음"
+SCHEMA_NOT_SUPPRESSED_NOTE = "schema는 값 미포함이라 억제 대상 아님"
+OK_AGES = ("64", "71", "55", "48", "82", "60", "53", "77", "41", "69", "58", "73")
+SOLO_SECRETS = ("SOLO", "97", "31")
+RAW_ROW_KEYS = {"rows", "records", "raw", "data"}
 
 # Values planted in fixtures — none of these may appear in any process output.
 PII_NAMES = ("김철수", "이영희", "박민준", "최수빈", "정하늘")
@@ -74,7 +78,20 @@ def test_1_single_row_freq_agg_suppressed(run_script, fixtures_dir, op, by):
     payload = _payload(proc)
     assert payload["suppressed"] is True
     assert "result" not in payload
-    assert payload["suppression_note"] == SUPPRESSION_NOTE
+    assert SUPPRESSION_NOTE in payload["suppression_note"]
+    assert "셀" in payload["suppression_note"]
+    _assert_no_leak(_blob(proc), SINGLE_SECRET, "64")
+
+
+def test_1_schema_one_row_is_not_suppression_target(run_script, fixtures_dir):
+    proc = _run(run_script, fixtures_dir, "queryguard_single.csv", "schema")
+    assert proc.returncode == 0, proc.stderr
+    payload = _payload(proc)
+    assert payload["suppressed"] is False
+    assert "result" in payload
+    assert "n_rows" not in payload["result"]
+    assert payload["result"]["n_columns"] == 3
+    assert payload["suppression_note"] == SCHEMA_NOT_SUPPRESSED_NOTE
     _assert_no_leak(_blob(proc), SINGLE_SECRET, "64")
 
 
@@ -88,11 +105,16 @@ def test_2_pii_column_name_variants_masked(run_script, fixtures_dir, col):
     payload = _payload(proc)
     blob = _blob(proc)
     _assert_no_leak(blob, *PII_NAMES, *PII_LATIN, *PII_INITIALS)
-    if payload.get("suppressed"):
-        return
+    assert payload.get("suppressed") is False
+    assert "result" in payload
     dumped = json.dumps(payload, ensure_ascii=False)
     assert "***MASKED(" in dumped
     assert col in payload["columns"]
+    cells = payload["result"]["cells"]
+    assert cells
+    for cell in cells:
+        assert "***MASKED(" in cell["by"][col]
+        assert int(cell["n"]) > 1
 
 
 # ---------------------------------------------------------------------------
@@ -105,11 +127,15 @@ def test_3_value_based_pii_masked_or_suppressed(run_script, fixtures_dir, col, s
     blob = _blob(proc)
     _assert_no_leak(blob, *secrets)
     payload = _payload(proc)
-    if payload.get("suppressed"):
-        assert "result" not in payload
-        return
+    assert payload.get("suppressed") is False
+    assert "result" in payload
     dumped = json.dumps(payload, ensure_ascii=False)
     assert "***MASKED(" in dumped
+    cells = payload["result"]["cells"]
+    assert cells
+    for cell in cells:
+        assert "***MASKED(" in cell["by"][col]
+        assert int(cell["n"]) > 1
 
 
 # ---------------------------------------------------------------------------
@@ -189,6 +215,66 @@ def test_7_happy_path_keys_match_contract(run_script, fixtures_dir, op, by):
     assert payload["dtypes"]["sex"] in {"categorical", "string"}
     assert payload["dtypes"]["index_date"] == "date"
     assert payload["dtypes"]["outcome"] == "binary"
+
+    result = payload["result"]
+    assert RAW_ROW_KEYS.isdisjoint(result.keys())
+    if op == "schema":
+        assert "n_columns" in result
+        assert "n_rows" in result
+        assert "cells" not in result
+        return
+    assert "cells" in result
+    assert isinstance(result["cells"], list)
+    assert result["cells"], "happy path must keep at least one cell"
+    for cell in result["cells"]:
+        assert "n" in cell
+        assert int(cell["n"]) > 1
+        assert "by" in cell
+        assert RAW_ROW_KEYS.isdisjoint(cell.keys())
+        if op == "agg" and "values" in cell:
+            assert isinstance(cell["values"], dict)
+            for stats in cell["values"].values():
+                assert isinstance(stats, dict)
+                assert {"mean", "min", "max"} & set(stats.keys())
+
+
+def test_cell_suppression_unique_freq_by_age(run_script, fixtures_dir):
+    """Every age is unique → every freq cell is n=1 → all dropped."""
+    proc = _run(run_script, fixtures_dir, "queryguard_ok.csv", "freq", "age")
+    assert proc.returncode == 0, proc.stderr
+    payload = _payload(proc)
+    assert payload["suppressed"] is True
+    assert "result" not in payload
+    note = payload["suppression_note"]
+    assert SUPPRESSION_NOTE in note
+    assert "12" in note and "셀" in note
+    _assert_no_leak(_blob(proc), *OK_AGES)
+
+
+def test_agg_drops_only_singleton_group(run_script, fixtures_dir):
+    """12 rows, one group is a singleton: drop that cell, keep the rest."""
+    proc = _run(run_script, fixtures_dir, "queryguard_singleton_group.csv", "agg", "group")
+    assert proc.returncode == 0, proc.stderr
+    payload = _payload(proc)
+    assert payload["suppressed"] is False
+    assert "result" in payload
+    cells = payload["result"]["cells"]
+    groups = {cell["by"]["group"] for cell in cells}
+    assert "A" in groups
+    assert "SOLO" not in groups
+    assert all(int(cell["n"]) > 1 for cell in cells)
+    assert len(cells) == 1
+    assert int(cells[0]["n"]) == 11
+    values = cells[0].get("values", {})
+    for stats in values.values():
+        assert stats.get("min") != stats.get("max") or int(cells[0]["n"]) > 1
+        assert stats.get("min") != 97
+        assert stats.get("max") != 97
+        assert stats.get("mean") != 97
+    note = payload["suppression_note"]
+    assert SUPPRESSION_NOTE in note
+    assert "1" in note and "셀" in note
+    _assert_no_leak(_blob(proc), *SOLO_SECRETS)
 
 
 # ---------------------------------------------------------------------------

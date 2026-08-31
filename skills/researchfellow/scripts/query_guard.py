@@ -9,7 +9,16 @@ Usage:
     python3 query_guard.py --data <path> --op {schema|freq|agg} [--by COL ...]
 
 stdout JSON keys (fixed): columns, dtypes, result, suppressed,
-suppression_note, warnings. On a 1-record result, `result` is omitted.
+suppression_note, warnings.
+
+freq/agg: any cell with n=1 is dropped on its own (the group key and any
+min/max/mean of that singleton never leave). suppression_note records how
+many cells were withheld — never the original keys. If every cell is
+dropped, `result` is omitted and suppressed=true.
+
+schema emits column labels and dtypes only, never cell values, so it is
+not a suppression target — including 1-row files. The note then reads
+"schema는 값 미포함이라 억제 대상 아님" and n_rows is omitted.
 
 ABSOLUTE RULE — a matched PII value or any fragment of it is NEVER written to
 stdout, stderr, or an exception message (same principle as phi_screener.py).
@@ -38,6 +47,7 @@ REJECTED_EXTS = {
     ".xlsx", ".xlsm", ".xls", ".sas7bdat", ".parquet", ".dta", ".sav", ".json",
 }
 SUPPRESSION_NOTE = "1건 결과는 공개하지 않음"
+SCHEMA_NOT_SUPPRESSED_NOTE = "schema는 값 미포함이라 억제 대상 아님"
 SMALL_N_THRESHOLD = 30
 SMALL_N_WARNING = "셀 도수 n≤30 — 통계적 유효성 주의 (소표본)"
 MASK_FMT = "***MASKED({kind})***"
@@ -460,7 +470,12 @@ def _collect_small_n(cells: Sequence[Dict[str, Any]]) -> bool:
 
 
 def build_schema_result(n_rows: int, n_columns: int) -> Dict[str, Any]:
-    return {"n_rows": n_rows, "n_columns": n_columns}
+    # Labels/dtypes live on the payload; n_rows on a 1-row file would
+    # advertise a singleton extract, so it is withheld.
+    result: Dict[str, Any] = {"n_columns": n_columns}
+    if n_rows != 1:
+        result["n_rows"] = n_rows
+    return result
 
 
 def build_freq_result(
@@ -506,31 +521,42 @@ def build_agg_result(
     cells: List[Dict[str, Any]] = []
     for key in order:
         rows = groups[key]
-        values: Dict[str, Any] = {}
-        for col in numeric_cols:
-            stats = _numeric_stats((r.get(col, "") for r in rows), dtypes[col])
-            if stats is not None:
-                values[col] = stats
+        n = len(rows)
         cell: Dict[str, Any] = {
             "by": _masked_by_map(key, by_cols, pii_kinds),
-            "n": len(rows),
+            "n": n,
         }
-        if values:
-            cell["values"] = values
+        # n=1 min/max/mean == the raw record. Do not compute stats; the
+        # cell itself is dropped after collapse.
+        if n > 1:
+            values: Dict[str, Any] = {}
+            for col in numeric_cols:
+                stats = _numeric_stats((r.get(col, "") for r in rows), dtypes[col])
+                if stats is not None:
+                    values[col] = stats
+            if values:
+                cell["values"] = values
         cells.append(cell)
     cells = _collapse_cells(cells, by_cols)
     return {"by": list(by_cols), "n_rows": len(records), "cells": cells}
 
 
-def _should_suppress(op: str, result: Dict[str, Any], n_rows: int) -> bool:
-    if op == "schema":
-        return False
-    if n_rows == 1:
-        return True
-    cells = result.get("cells")
-    if isinstance(cells, list) and len(cells) == 1 and int(cells[0].get("n", 0)) == 1:
-        return True
-    return False
+def _drop_singleton_cells(
+    cells: Sequence[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Remove n=1 cells. Returns (kept, dropped_count) — no group keys."""
+    kept: List[Dict[str, Any]] = []
+    dropped = 0
+    for cell in cells:
+        if int(cell.get("n", 0)) > 1:
+            kept.append(cell)
+        else:
+            dropped += 1
+    return kept, dropped
+
+
+def _cell_suppression_note(dropped: int) -> str:
+    return f"{SUPPRESSION_NOTE} (셀 {dropped}개 억제)"
 
 
 def _resolve_by(header: Sequence[str], by_cols: Optional[Sequence[str]], op: str) -> List[str]:
@@ -570,9 +596,12 @@ def run_query(path: str, op: str, by_cols: Optional[Sequence[str]] = None) -> Di
         result = build_agg_result(records, resolved_by, dtypes, pii_kinds)
 
     warnings: List[str] = []
-    cells = result.get("cells")
-    if isinstance(cells, list) and _collect_small_n(cells):
-        warnings.append(SMALL_N_WARNING)
+    dropped = 0
+    if op in ("freq", "agg") and isinstance(result.get("cells"), list):
+        kept, dropped = _drop_singleton_cells(result["cells"])
+        result["cells"] = kept
+        if _collect_small_n(kept) or (dropped and not kept):
+            warnings.append(SMALL_N_WARNING)
 
     payload: Dict[str, Any] = {
         "columns": list(header),
@@ -582,10 +611,19 @@ def run_query(path: str, op: str, by_cols: Optional[Sequence[str]] = None) -> Di
         "suppression_note": "",
         "warnings": warnings,
     }
-    if _should_suppress(op, result, len(records)):
+    if op == "schema":
+        # schema는 값 미포함이라 억제 대상 아님
+        if len(records) == 1:
+            payload["suppression_note"] = SCHEMA_NOT_SUPPRESSED_NOTE
+        return payload
+
+    if dropped:
+        payload["suppression_note"] = _cell_suppression_note(dropped)
+    if op in ("freq", "agg") and not result.get("cells"):
         payload.pop("result")
         payload["suppressed"] = True
-        payload["suppression_note"] = SUPPRESSION_NOTE
+        if not payload["suppression_note"]:
+            payload["suppression_note"] = SUPPRESSION_NOTE
     return payload
 
 
