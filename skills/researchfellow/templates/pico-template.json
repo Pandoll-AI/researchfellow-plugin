@@ -43,5 +43,15 @@
   "study_design_candidates": [],
   "potential_biases": [],
   "key_covariates": [],
+  "rival_hypotheses": [
+    {
+      "hypothesis": "",
+      "refutation_condition": ""
+    },
+    {
+      "hypothesis": "",
+      "refutation_condition": ""
+    }
+  ],
   "notes": ""
 }

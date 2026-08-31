@@ -17,6 +17,25 @@
 | P6 Orient | 현재 위치를 묻거나 재개할 때의 현황 | 13-step 좌표 + blocker + 다음 액션 |
 | P7 Blocker | 진행할 수 없는 순간의 차단설명 | 무엇이 막혔는지 + 연구 언어의 이유 + 해제 조건 + 지금 가능한 것 |
 
+## Judgment levels × primitives
+
+P1–P7은 *어떻게* 말할지의 문법이다. Level A/B/C는 *물을지*의 등급이다. 등급을
+먼저 매기고, 그 등급이 쓰는 프리미티브를 고른다. 등급 정의는 `SKILL.md`가 정본이다.
+
+| Level | 쓰는 프리미티브 | 말의 형태 |
+|---|---|---|
+| A | P3 → P5 | 작업공표 후 처리하고, 완료를 한 줄로 알린다. P4를 열지 않는다. |
+| B | P2 + P4 | 재진술 뒤에 **추천 → 이유 → 대안 → 선택이 결과에 미치는 영향**. 추천안이 기본값이다. |
+| C | P2 다음 P4 | 추천은 가능하나 확정은 명시적 확인 후에만. 한 화면 한 결정. |
+
+Level C로 두는 결정 (확인 없이 잠그지 않는다): 연구 질문, causal/association,
+primary outcome, comparator, time zero, estimand, 주요 eligibility, protocol,
+SAP primary, 결과를 본 뒤 primary 변경.
+
+B/C를 열기 전에 그 자리에서 쓰인 용어를 정의부터 한 줄로 푼다. 사용자는 이전
+단계의 설명을 기억하지 않는다고 가정한다. 정의 → 이 연구에서의 적용 → 추천.
+강의가 되면 실패다.
+
 ## Touchpoint mapping
 
 | Touchpoint | Primitive | Copy rule |
@@ -29,8 +48,11 @@
 | Briefing — 3 agendas | P2 + P5 | research card 1줄로 시작하고, 역추출 완료를 알린다 |
 | Intake Gate — 4 stages | P2 + P4 | 이해진술과 역추출 근거를 먼저 보여 준 뒤 배치 확정을 요청한다 |
 | Provenance interview | P4 | 실제 데이터 관련 세 질문은 기존처럼 개별 확인한다 |
-| Gate approval — 3 choices | P4 | 선택지 앞에 현재 연구 이해를 1줄로 진술한다 |
-| Step transition — 3 moves | P5 | 완료 보고에 산출물 폴더 경로를 포함한다 |
+| Gate approval — 3 choices | P4 | 선택지 앞에 현재 연구 이해를 1줄로 진술한다. protocol / SAP primary / 결과 후 primary 변경은 Level C |
+| Step transition — 3 moves | P5 | 완료 보고에 산출물 폴더 경로를 포함한다. Steps 1·4·5·6·9·10·11은 Knowledge Check 한 문장 (게이트 아님) |
+| Level A 작업 (포맷·코드·동의어·보고지침 매핑) | P3 → P5 | 묻지 않고 처리한 뒤 알린다 |
+| Level B 방법 선택 (설계·모형·결측·민감도) | P2 + P4 | 추천·이유·대안·영향. 거절하지 않으면 추천안 |
+| Level C 핵심 결정 (질문·outcome·time zero·estimand 등) | P2 + P4 | 명시적 확인 전에는 확정하지 않는다 |
 | S0 resume + participation | P6 | research card가 있으면 1줄로 먼저 보여 주고 13-step 현황을 렌더한다 |
 | Desk forms (`desk-interface.md`) | P2 + P6 | 기존 라벨과 상태 표현을 사용해 이해와 현황을 함께 보여 준다 |
 | PHI warning / fail-closed / can-enter block | P7 | 차단설명 4요소를 같은 순서로 적용한다 |

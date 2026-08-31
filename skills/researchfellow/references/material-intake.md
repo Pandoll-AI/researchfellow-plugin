@@ -284,10 +284,37 @@ Ask when `analysis_output` is confirmed (verbatim):
 
 ---
 
+## Data-access contract (raw extracts)
+
+원자료 파일(csv / xlsx / tsv / sas7bdat 등 `raw_dataset`)은 프로젝트 ignore 목록에
+등재한다. `research/.gitignore`의 `00_materials/`가 사본을 가린다. 그 밖 경로를
+가리키면 그 경로도 ignore에 추가한다. LLM은 이 파일을 Read하지 않는다.
+스키마·도수·집계는 `query_guard.py` 출력만 읽는다.
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/query_guard.py \
+    --data <path> --op {schema|freq|agg} [--by COL ...]
+```
+
+stdout JSON (필드명 고정):
+
+```json
+{"columns": [], "dtypes": {}, "result": {}, "suppressed": false,
+ "suppression_note": "", "warnings": []}
+```
+
+- 단일 레코드로 좁혀지면 `result`를 생략하고 `suppressed: true`. 억제 사실은
+  `suppression_note`로 알린다.
+- 컬럼명이 PII를 시사하면(이름·연락처·주민번호 등) 마스킹 라벨만 출력한다.
+- 셀 도수 n≤30이면 `warnings`에 통계 유효성 경고.
+
+Step 4 절차는 `references/workflow-steps.md`와 같다.
+
 ## Safety recap
 
 - Materials are optional: "없으면 건너뛰어도 됩니다."
 - PHI: never quote a matched value; column + row numbers only; screening is advisory,
   user holds final responsibility.
+- Raw extracts (csv/xlsx and similar): ignore-listed; never Read; `query_guard` only.
 - `analysis_output` always triggers the provenance interview — an imported result can
   never silently bypass the real-data hard gates.

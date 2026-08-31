@@ -169,3 +169,21 @@ runner/checklist can consume it:
 Store as `research/10_analysis/analysis-plan.json`, register it as the `analysis_plan` artifact,
 and confirm with the user before Step 9/10. The emitted R script (§8 analysis_plan artifact) is the
 authoritative, reproducible analysis; the local Python fit is a preview.
+
+---
+
+## 9. Sample size, power, and precision
+
+효과크기는 **문헌 근거로만** 쓴다. 전형적인 값이라고 발명하지 않는다. 출처 PMID/DOI가
+없으면 효과크기를 표본수 계산에 넣지 않고, 그 공백을 사용자에게 말한다.
+
+사전 계산이 가능한 경우(아직 결과를 보기 전이고, 목표 정밀도나 검정력을 설계에
+넣을 여지가 있을 때) 접근을 구분한다.
+
+- **폐쇄형(closed-form)** — 비율 차이, log-rank 등 표준 공식이 있고 가정이 맞을 때.
+- **시뮬레이션** — clustering, competing risks, time-varying exposure처럼 공식이
+  더 이상 단순하지 않을 때.
+
+이미 확보된 후향 데이터에서는 post-hoc power를 앞에 두지 않는다. 확보된 N·event·
+exposure prevalence에서 나올 **precision과 confidence interval**을 우선한다.
+post-hoc power는 p-value를 다시 말하는 것에 가깝다. EPV 경고는 §5.

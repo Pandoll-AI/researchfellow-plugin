@@ -9,7 +9,10 @@
      references/exemplars/observational-manuscript-style.md.
      Coverage is screened by scripts/checklist_map.py; the "REPORTING:" anchors
      below map each section to its reporting items. Every number must trace to an
-     analysis output table (never write a number the script didn't produce). -->
+     analysis output table (never write a number the script didn't produce).
+     Claim anchors (claim_map.py): place beside a numeric claim or assertion.
+     Grammar: <!-- claim: <kind>:<id> -->  where kind is table | figure | text.
+     Examples live in Results (table:2, figure:1). -->
 
 # {{title}}
 <!-- REPORTING: STROBE-1a — state the design (e.g. "retrospective cohort study") in the title -->
@@ -78,8 +81,10 @@
 ### Primary Analysis
 <!-- REPORTING: STROBE-15 outcome events; STROBE-16a unadjusted AND adjusted estimate + 95% CI; STROBE-16c absolute risk/difference -->
 {{results_primary}}
+<!-- claim: table:2 -->
 
 *See Table 2 and Figure 1.*
+<!-- claim: figure:1 -->
 
 ### Secondary Analyses
 {{results_secondary}}

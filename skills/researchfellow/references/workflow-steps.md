@@ -38,6 +38,9 @@ Gate ids are semantic (not ordinals). Types (hard/soft) and anchors are in
 활동은 real 단계 폴더에 어떤 파일도 쓰지 않고 요약을 `rehearsal/` 아래에만 저장하거나
 생략합니다. `imported` 상태로 반입된 단계는 완료 무브가 없으므로 `SUMMARY.md`를 만들지 않습니다.
 
+Steps 1 · 4 · 5 · 6 · 9 · 10 · 11의 P5 보고에는 §Knowledge Check 한 문장을 붙입니다.
+게이트가 아닙니다.
+
 ---
 
 ## Step 1: Idea / PICO Structuring
@@ -51,6 +54,8 @@ Gate ids are semantic (not ordinals). Types (hard/soft) and anchors are in
 2. Mark uncertain fields `"confidence": "low"` and **tell the user** which parts are
    uncertain, asking if they can clarify.
 3. Use `templates/pico-template.json` as schema; save to `research/01_pico/idea.json`.
+   On PICO confirm, fill `rival_hypotheses` with two entries, each
+   `{hypothesis, refutation_condition}`.
 4. Suggest 2–3 study-design candidates (cohort, case-control, cross-sectional) with brief
    pros/cons; identify potential biases and key covariates.
 
@@ -92,8 +97,10 @@ not oversaturated? Evaluated on the idea before Literature Scoping.
 
 **Process:**
 1. For each paper extract: design, sample, exposure, outcome, effect size, covariates,
-   limitations.
+   limitations. Set `direction` to `supporting` | `contradictory` | `null`.
 2. Compute effect-direction consistency; identify gaps; assess novelty.
+   Run an explicit pass for dissenting and contradictory literature — supporting
+   papers alone are not the table.
 3. Build the table with `templates/evidence-table-template.json`.
 4. **Present a summary:** "N편 분석 결과, 효과 방향 일관성은 X, 발견된 gap은 Y."
 
@@ -114,7 +121,23 @@ Step 3 can be deepened by `novelty_check` if the MCP server is configured — op
 1. List required variables: exposure, outcome, covariates, time variables, exclusions.
 2. Specify definitions, coding, measurement windows; label required/recommended/optional.
 3. If a dataset schema is provided, attempt auto-mapping and **flag unmapped variables**.
+   Do this from `query_guard` output, never by Reading the data file.
 4. Present the list organized by category (exposure / outcome / covariates / time).
+
+**Data-access contract:** LLM은 데이터 파일(csv/xlsx 등 원자료)을 직접 읽지 않는다.
+원자료는 ignore 목록에 등재한다 (`references/material-intake.md`). 스키마·도수·집계는
+`query_guard` 출력만 읽는다.
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/query_guard.py \
+    --data <path> --op {schema|freq|agg} [--by COL ...]
+```
+
+stdout JSON (필드명 고정): `{columns, dtypes, result, suppressed, suppression_note, warnings}`
+
+- 단일 레코드로 좁혀지면 `result` 생략, `suppressed=true`. 억제 사실은 알린다.
+- PII를 시사하는 컬럼(이름·연락처·주민번호 등)은 마스킹 라벨만.
+- 셀 n≤30이면 `warnings`에 통계 유효성 경고.
 
 **Output:** `variables` → `research/04_variables/variables.json`
 
@@ -145,7 +168,7 @@ Step 9 entry.
 
 ## Step 6: SAP (Statistical Analysis Plan)
 
-**Purpose:** Pre-specify all analyses before seeing real data.
+**Purpose:** 이 단계의 목적은 결과를 보기 전에 추정 목표와 방법을 기록해 두는 것이다. 결과를 본 뒤의 변경을 막지는 않는다 — 다만 무엇이 사전 지정이었고 무엇이 사후 변경인지 구분되어 기록된다.
 
 **Entry:** `protocol` [req], `variables` [req].
 
@@ -168,6 +191,12 @@ Step 9 entry.
 
 **Process:** generate Table 1 shell, primary results table, subgroup/sensitivity tables,
 cohort flow diagram, and figure shells (forest plot, survival curve).
+
+**Design-judgment checkpoint:** 표 shell이 실제 설계와 맞는지 심사숙고하는 자리이다.
+eligibility · time zero · exposure · comparator · primary outcome · estimand가
+shell에 그대로 보이는지 대조한다. 같은 껍질을 표·코호트 흐름·forest/survival
+레이아웃 등 한눈에 들어오는 시각으로 여러 장 보여, 논문화할지 / 분석을 더할지 /
+다른 자료가 필요한지 판단하게 한다.
 
 **Output:** `shells` → `research/07_shells/shells/`
 
@@ -276,6 +305,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/state_tool.py gate-c
    provenance in **Limitations** (FR-G5).
 3. Run the STROBE/RECORD checklist mapping (see `references/checklist-templates.md`).
 4. **Show coverage:** "22개 항목 중 N개 충족, 누락 항목: ...".
+5. Map numeric claims to evidence (anchor grammar in `templates/manuscript-template.md`):
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/claim_map.py \
+       --manuscript <md> --evidence <evidence.json>
+   ```
+   stdout JSON (필드명 고정): `{claims:[{text, anchor:{kind:"table|figure|text", id}, sources:[{type:"pmid|doi", id, verified}], status:"verified|unverified|mismatch"}], unmapped:[]}`.
 
 **Output:** `manuscript`, `checklist` → `research/11_manuscript/manuscript.md`, `research/11_manuscript/checklist.json`
 
@@ -335,3 +370,21 @@ about IRB or data reality (2026-07-16 D7).
 **Output:** `13_revision/round-<N>/` (loops)
 
 **Gate:** none. *(Remote: `reviewer_playbook` can deepen Step 13 if configured.)*
+
+---
+
+## Knowledge Check
+
+시험을 치르지 않는다. 단계 종료 P5 보고에 한 문장을 넣어, 연구자가 이 단계의
+분석을 이해했다는 흔적을 남긴다. 게이트가 아니다 — 이 문장을 확인하지 않았다고
+진행을 막지 않는다. 아래 단계만 해당한다.
+
+| Step | 한 문장 |
+|---|---|
+| 1 | 누구에서 무엇과 무엇을 비교해 어떤 outcome을 언제 측정하는 연구인지 설명할 수 있습니다. |
+| 4 | 각 주요 변수가 exposure/outcome/confounder 중 어떤 역할인지 확인했습니다. |
+| 5 | 연구대상, time zero, comparator, outcome과 follow-up을 확인했습니다. |
+| 6 | 무슨 effect를 추정하며 왜 이 분석방법을 사용하는지 확인했습니다. |
+| 9 | 실제 분석대상이 어떻게 만들어졌고 주요 데이터 문제를 어떻게 처리했는지 확인했습니다. |
+| 10 | Primary estimate와 불확실성, 주요 assumption 및 sensitivity result를 확인했습니다. |
+| 11 | 논문의 주장이 실제 설계와 분석이 허용하는 범위를 넘지 않는지 확인했습니다. |

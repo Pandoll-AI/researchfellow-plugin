@@ -63,15 +63,34 @@
 - Goodness of fit: {{gof_check}}
 - Influential observations: {{influential_obs}}
 
-## 10. Tables and Figures Plan
+## 10. Sample Size and Precision
+
+효과크기는 문헌 근거로만 적는다. 발명하지 않는다.
+
+### 10.1 Effect size source (literature only)
+{{effect_size_source}}
+
+### 10.2 A priori calculation (when still possible)
+
+Approach: closed-form / simulation
+
+{{sample_size_approach}}
+
+### 10.3 Already-collected retrospective data
+
+post-hoc power 대신 precision과 confidence interval을 우선한다.
+
+{{precision_plan}}
+
+## 11. Tables and Figures Plan
 
 | # | Type | Content | Pre-spec? |
 |---|------|---------|-----------|
 {{tables_figures}}
 
-## 11. Software and Packages
+## 12. Software and Packages
 {{software}}
 
 ---
 
-*Pre-specified analyses are locked after Gate#5 approval. Any additions after this point are automatically labeled as exploratory.*
+*SAP는 결과를 보기 전에 추정 목표와 방법을 기록한다. 결과를 본 뒤의 변경을 막지는 않는다 — 사전 지정과 사후 변경을 구분해 기록하며, 추가분은 exploratory로 표시한다.*

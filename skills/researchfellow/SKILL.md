@@ -36,10 +36,54 @@ announcing autonomous work, requesting a decision, reporting completion, renderi
 resume view, or explaining a blocker.** It is the canonical P1–P7 copy grammar and does
 not change deterministic judgment, gate semantics, or audit behavior.
 
+## Judgment levels (A / B / C)
+
+모든 판단을 같은 수준으로 묻지 않는다. 등급을 먼저 매기고 그 등급의 행동 규칙을
+따른다. P1–P7과의 매핑은 `references/interaction-model.md`에 있다.
+
+### Level A — 자율 처리 후 간단 알림
+
+연구의 과학적 의미를 실질적으로 바꾸지 않는 작업.
+
+**AI 행동:** 처리한 뒤 짧게 알린다 (P3 → P5). 묻지 않는다.
+
+예: 변수명 정리, 날짜 형식 통일, 검색어 동의어 확장, Table/Figure formatting,
+통계 코드 작성, 문법 교정, 보고지침 항목 매핑.
+
+### Level B — 추천 → 이유 → 대안 → 영향
+
+정답이 하나가 아니지만 합리적인 기본 선택이 있는 경우.
+
+**AI 행동:** **추천 → 이유 → 대안 → 선택이 결과에 미치는 영향**을 보여 준다.
+특별한 이유가 없으면 추천안을 그대로 쓸 수 있다. P2 + P4.
+
+예: cohort vs case-control, RR vs OR, regression vs IPTW, missing data 처리.
+
+### Level C — 명시적 확인 필수
+
+연구자의 의도를 바꾸는 핵심 결정. 추천은 가능하지만 확인 없이 확정하지 않는다
+(P4, 한 화면 한 결정).
+
+반드시 확인: 연구 질문 · causal/association · primary outcome · comparator ·
+time zero · estimand · 주요 eligibility · protocol · SAP primary · 결과 후
+primary 변경.
+
+예: 30일 사망을 primary로 둘지 병원 내 사망을 primary로 둘지는 연구의 의미를
+바꾸므로 연구자가 확인한다.
+
+## Educational narrative
+
+사용자는 이전 단계의 정의를 기억하지 않는다고 가정한다. B/C 판단을 요청하기
+전에 그 자리에서 쓰인 용어를 정의부터 한 줄로 푼 다음 추천한다. 강의가 되면
+실패다. 단계별 설명 비트는 `references/workflow-steps.md`.
+
 ## PHI never leaves the machine
 
 All patient-level data and screening happen locally. Remote enrichment (if configured)
 receives only de-identified derivatives. See "Remote Enrichment Points" below.
+Raw extracts (csv/xlsx and similar) are ignore-listed; the LLM reads `query_guard.py`
+output, never the file. Contract: `references/workflow-steps.md` Step 4 and
+`references/material-intake.md`.
 
 ---
 
@@ -202,6 +246,10 @@ After completing a step: **요약** (뭘 만들었는지, 파일명 포함) → 
 silent. Milestone steps (1 · 8 · 10 · 12) get ONE celebratory line in the 요약, anchored
 in time via audit.jsonl ("아이디어에서 {N}일 만에 Planning Mode 완주!") — never more than
 a line, never a badge ceremony.
+
+**Knowledge Check (게이트 아님).** Steps 1 · 4 · 5 · 6 · 9 · 10 · 11의 P5 보고에
+한 문장을 넣어 이해 흔적을 남긴다 — 시험이 아니고 새 게이트도 아니다. 문장 목록은
+`references/workflow-steps.md` §Knowledge Check. 다른 단계는 이 줄을 생략한다.
 
 After every state-save point that appends an event to `audit.jsonl`, fire-and-forget the
 non-blocking renderer (do not wait for or act on failure): `python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/progress_renderer.py render --project-dir <active-project-dir>`,
