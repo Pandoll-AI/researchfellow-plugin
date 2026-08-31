@@ -1,0 +1,20 @@
+{
+  "status": "ok",
+  "message-type": "work-list",
+  "message": {
+    "items": [
+      {
+        "DOI": "10.1000/rf-lit-001",
+        "title": ["Statins in sepsis: a fixture trial"],
+        "author": [
+          {"given": "Jane", "family": "Doe"},
+          {"given": "Alex", "family": "Roe"}
+        ],
+        "container-title": ["Fixture Medicine"],
+        "published": {"date-parts": [[2020, 1, 15]]},
+        "abstract": "<jats:p>A fixture abstract about sepsis and statins and mortality.</jats:p>",
+        "alternative-id": ["11111111"]
+      }
+    ]
+  }
+}

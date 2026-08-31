@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID>11111111</PMID>
+      <Article>
+        <Abstract>
+          <AbstractText>A fixture abstract about sepsis and statins and mortality.</AbstractText>
+        </Abstract>
+      </Article>
+    </MedlineCitation>
+  </PubmedArticle>
+</PubmedArticleSet>

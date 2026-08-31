@@ -1,0 +1,19 @@
+{
+  "messages": [
+    {
+      "status": "ok",
+      "count": 1,
+      "total": 1
+    }
+  ],
+  "collection": [
+    {
+      "doi": "10.1101/2020.01.01.20001001",
+      "title": "MedRxiv fixture on statin mortality in sepsis",
+      "authors": "Lee S, Kim J",
+      "date": "2020-03-01",
+      "category": "intensive care",
+      "abstract": "Preprint fixture abstract on sepsis statin mortality."
+    }
+  ]
+}

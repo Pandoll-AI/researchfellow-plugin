@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "count": 1,
+    "per_page": 20
+  },
+  "results": [
+    {
+      "id": "https://openalex.org/W11111111",
+      "doi": "https://doi.org/10.1000/rf-lit-001",
+      "display_name": "Statins in sepsis: a fixture trial",
+      "publication_year": 2020,
+      "publication_date": "2020-01-15",
+      "ids": {
+        "pmid": "https://pubmed.ncbi.nlm.nih.gov/11111111",
+        "doi": "https://doi.org/10.1000/rf-lit-001"
+      },
+      "authorships": [
+        {"author": {"display_name": "Jane Doe"}},
+        {"author": {"display_name": "Alex Roe"}}
+      ],
+      "primary_location": {
+        "source": {"display_name": "Fixture Medicine"}
+      },
+      "abstract_inverted_index": {
+        "A": [0],
+        "fixture": [1],
+        "abstract": [2],
+        "about": [3],
+        "sepsis": [4],
+        "and": [5],
+        "statins": [6]
+      }
+    }
+  ]
+}

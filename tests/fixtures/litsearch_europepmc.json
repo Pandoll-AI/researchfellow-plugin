@@ -1,0 +1,19 @@
+{
+  "hitCount": 1,
+  "resultList": {
+    "result": [
+      {
+        "id": "11111111",
+        "source": "MED",
+        "pmid": "11111111",
+        "doi": "10.1000/rf-lit-001",
+        "title": "Statins in sepsis: a fixture trial",
+        "authorString": "Jane Doe, Alex Roe",
+        "journalTitle": "Fixture Medicine",
+        "pubYear": "2020",
+        "firstPublicationDate": "2020-01-15",
+        "abstractText": "A fixture abstract about sepsis and statins and mortality."
+      }
+    ]
+  }
+}

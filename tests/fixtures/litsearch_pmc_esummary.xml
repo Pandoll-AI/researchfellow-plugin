@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<eSummaryResult>
+  <DocSum>
+    <Id>9990001</Id>
+    <Item Name="Title" Type="String">Full text fixture on sepsis</Item>
+    <Item Name="PubDate" Type="Date">2021 Apr</Item>
+    <Item Name="FullJournalName" Type="String">PMC Fixture Journal</Item>
+    <Item Name="ArticleIds" Type="List">
+      <Item Name="pmid" Type="String">22222222</Item>
+      <Item Name="pmcid" Type="String">PMC9990001</Item>
+      <Item Name="doi" Type="String">10.1000/rf-lit-002</Item>
+    </Item>
+  </DocSum>
+</eSummaryResult>

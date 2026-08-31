@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<eSummaryResult>
+  <DocSum>
+    <Id>11111111</Id>
+    <Item Name="Title" Type="String">Statins in sepsis: a fixture trial</Item>
+    <Item Name="PubDate" Type="Date">2020 Jan</Item>
+    <Item Name="FullJournalName" Type="String">Fixture Medicine</Item>
+    <Item Name="DOI" Type="String">10.1000/rf-lit-001</Item>
+    <Item Name="ArticleIds" Type="List">
+      <Item Name="pubmed" Type="String">11111111</Item>
+      <Item Name="doi" Type="String">10.1000/rf-lit-001</Item>
+    </Item>
+  </DocSum>
+</eSummaryResult>
