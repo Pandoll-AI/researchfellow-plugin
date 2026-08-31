@@ -47,6 +47,10 @@ EVIDENCE_TEMPLATE_PATH = os.path.normpath(
 )
 
 ALL_SOURCES = ("pubmed", "pmc", "europepmc", "medrxiv", "openalex", "crossref")
+# PMC shares NCBI with PubMed and does not count toward extra-source coverage.
+INDEPENDENT_EXTRAS = frozenset({"europepmc", "medrxiv", "openalex", "crossref"})
+# Outbound search-string keys only. Never screen email/id/filter/contact.
+_SEARCH_PARAM_KEYS = frozenset({"term", "query", "search", "q"})
 ITEM_SCHEMA_KEYS = (
     "pmid",
     "doi",
@@ -239,6 +243,23 @@ def screen_query(query: str) -> None:
         raise QueryRejectedError(rule_ids)
 
 
+def _screen_search_params(params: Optional[Dict[str, Any]]) -> None:
+    """Screen outbound search-string params at the HTTP boundary.
+
+    Matched original values are never included in the exception.
+    Contact/id/filter fields are not search strings and are not screened.
+    """
+    for key, value in (params or {}).items():
+        if str(key).lower() not in _SEARCH_PARAM_KEYS:
+            continue
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                if isinstance(item, str) and item:
+                    screen_query(item)
+        elif isinstance(value, str) and value:
+            screen_query(value)
+
+
 # ---------------------------------------------------------------------------
 # ID / text helpers
 # ---------------------------------------------------------------------------
@@ -365,17 +386,36 @@ def _merge_into(base: Dict[str, Any], extra: Dict[str, Any]) -> None:
             base[key] = value
 
 
-def evaluate_degraded(successful_sources: Sequence[str]) -> Tuple[bool, str]:
+def evaluate_degraded(
+    successful_sources: Sequence[str],
+    requested_sources: Optional[Sequence[str]] = None,
+) -> Tuple[bool, str]:
+    """True when pubmed is missing or fewer than 2 independent extras succeeded.
+
+    Independent extras are europepmc, medrxiv, openalex, crossref. PMC is
+    excluded (NCBI double-count). When fewer than 2 independent extras were
+    requested (pubmed-only / NCBI-only), degraded is False and the reason
+    field records that this is the expected result.
+    """
     successful = list(successful_sources)
+    requested = list(ALL_SOURCES if requested_sources is None else requested_sources)
     pubmed_ok = "pubmed" in successful
-    extra = [s for s in successful if s != "pubmed"]
-    if pubmed_ok and len(extra) >= 2:
+    extras_ok = [s for s in successful if s in INDEPENDENT_EXTRAS]
+    extras_requested = [s for s in requested if s in INDEPENDENT_EXTRAS]
+    if len(extras_requested) < 2:
+        return False, (
+            f"requested independent extras: {len(extras_requested)} "
+            "(standalone NCBI search is an expected result)"
+        )
+    if pubmed_ok and len(extras_ok) >= 2:
         return False, ""
     parts: List[str] = []
     if not pubmed_ok:
         parts.append("pubmed did not succeed")
-    if len(extra) < 2:
-        parts.append(f"additional sources succeeded: {len(extra)} (need >= 2)")
+    if len(extras_ok) < 2:
+        parts.append(
+            f"independent extra sources succeeded: {len(extras_ok)} (need >= 2)"
+        )
     return True, "; ".join(parts)
 
 
@@ -686,6 +726,7 @@ def _http_get(
     headers: Optional[Dict[str, str]] = None,
     path_url: Optional[str] = None,
 ) -> Tuple[HttpResponse, Dict[str, Any]]:
+    _screen_search_params(params)
     url = path_url if path_url is not None else f"{endpoint}?{urlencode(params)}"
     accessed = _now()
     log = _complete_log(endpoint, params, accessed)
@@ -1087,6 +1128,8 @@ def run_multi_search(
             source_logs[source] = log
             collected.extend(items)
             successful.append(source)
+        except QueryRejectedError:
+            raise
         except SourceFailure as exc:
             failed.append({"source": source, "error": exc.kind})
             if exc.log:
@@ -1096,8 +1139,17 @@ def run_multi_search(
         except Exception:
             failed.append({"source": source, "error": "error"})
 
-    merged = merge_records(collected)
-    degraded, reason = evaluate_degraded(successful)
+    try:
+        merged = merge_records(collected)
+    except Exception:
+        merged = []
+        for rec in collected:
+            try:
+                merged.append(finalize_item(rec))
+            except Exception:
+                merged.append(rec)
+        failed.append({"source": "merge", "error": "error"})
+    degraded, reason = evaluate_degraded(successful, requested_sources=wanted)
     return {
         "schema_version": defaults["schema_version"],
         "query": query,
@@ -1114,15 +1166,27 @@ def run_multi_search(
 # Legacy NCBI helpers (CLI backward compatible)
 # ---------------------------------------------------------------------------
 def _request_xml(path: str, params: dict, timeout: int = 15, attempt: int = 0) -> ET.Element:
+    _screen_search_params(params)
     url = f"{EUTILS_BASE}/{path}?{urlencode(params)}"
     try:
         with urlopen(url, timeout=timeout) as response:
             body = response.read()
         return ET.fromstring(body)
+    except QueryRejectedError:
+        raise
     except Exception as exc:
         if attempt < len(BACKOFF_GAPS):
             wait = BACKOFF_GAPS[attempt]
-            print(f"  Retry {attempt + 1} after {wait}s: {exc}", file=sys.stderr)
+            status = getattr(exc, "code", None)
+            if not isinstance(status, int):
+                status = getattr(exc, "status", None)
+            if isinstance(status, int):
+                print(
+                    f"  Retry {attempt + 1} after {wait}s: pubmed HTTP {status}",
+                    file=sys.stderr,
+                )
+            else:
+                print(f"  Retry {attempt + 1} after {wait}s: pubmed", file=sys.stderr)
             time.sleep(wait)
             return _request_xml(path, params, timeout, attempt + 1)
         raise
@@ -1273,7 +1337,7 @@ def write_search_outputs(
 
 def run_legacy_pubmed(args: argparse.Namespace) -> Dict[str, Any]:
     """Existing PubMed-only path: esearch → esummary → efetch, same files as before."""
-    print(f"Searching PubMed: {args.query}")
+    print("Searching pubmed")
     pmids = search_pmids(
         args.query,
         email=args.email,
@@ -1325,11 +1389,13 @@ def run_legacy_pubmed(args: argparse.Namespace) -> Dict[str, Any]:
                 _now(),
             )
         },
-        "degraded": False,
-        "degraded_reason": "",
         "successful_sources": ["pubmed"],
     }
-    # PubMed-only is the legacy path; degraded applies to the multi-source run.
+    degraded, reason = evaluate_degraded(
+        result["successful_sources"], requested_sources=["pubmed"]
+    )
+    result["degraded"] = degraded
+    result["degraded_reason"] = reason
     write_search_outputs(args.output, args, result, pmids=pmids, summaries=summaries)
     print(f"Saved {len(summaries)} articles to {args.output}")
     return result

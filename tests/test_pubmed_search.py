@@ -4,8 +4,8 @@ Verification (network-free; fixture responses only):
   (1) per-source parse → unified schema
   (2) failure isolation: one source errors, others survive
   (3) repro log fields endpoint/params/accessed are non-empty
-  (4) degraded=true when only PubMed + 1 extra source succeed
-  (5) PHI query (RRN) is blocked, never echoed
+  (4) degraded=true when only PubMed + PMC succeed (PMC is not an independent extra)
+  (5) PHI query (RRN) is blocked, never echoed — including search_pmids()
   (6) DOI-based cross-source merge
   (7) legacy PubMed-only CLI args still work
 """
@@ -226,15 +226,46 @@ def test_4_degraded_when_only_pubmed_plus_one_extra():
     assert result["degraded_reason"]
 
 
-def test_4_not_degraded_when_pubmed_plus_two_extra():
+def test_4_pmc_only_extra_counts_as_degraded():
+    """PMC is NCBI-adjacent; pubmed+pmc must not satisfy the ≥2 extras rule."""
     transport = FixtureTransport(
-        errors={"medrxiv": 500, "openalex": 500, "crossref": 500}
+        errors={
+            "europepmc": 500,
+            "medrxiv": 500,
+            "openalex": 500,
+            "crossref": 500,
+        }
+    )
+    result = run_search(transport=transport)
+    assert set(result["successful_sources"]) == {"pubmed", "pmc"}
+    independent = [
+        s for s in result["successful_sources"] if s in pubmed_search.INDEPENDENT_EXTRAS
+    ]
+    assert independent == []
+    assert result["degraded"] is True
+    assert result["degraded_reason"]
+
+
+def test_4_not_degraded_when_pubmed_plus_two_independent_extras():
+    transport = FixtureTransport(
+        errors={"medrxiv": 500, "openalex": 500}
     )
     result = run_search(transport=transport)
     assert "pubmed" in result["successful_sources"]
-    extra = [s for s in result["successful_sources"] if s != "pubmed"]
-    assert len(extra) >= 2
+    independent = [
+        s for s in result["successful_sources"] if s in pubmed_search.INDEPENDENT_EXTRAS
+    ]
+    assert len(independent) >= 2
     assert result["degraded"] is False
+
+
+def test_4_pubmed_only_requested_is_not_degraded_with_reason():
+    degraded, reason = pubmed_search.evaluate_degraded(
+        ["pubmed"], requested_sources=["pubmed"]
+    )
+    assert degraded is False
+    assert reason
+    assert "independent extras: 0" in reason
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +299,58 @@ def test_5_cli_phi_reject_does_not_echo(tmp_path, capsys):
     assert payload["error"] == "phi_query_rejected"
     assert "krn_rrn" in payload["rule_ids"]
     assert not (tmp_path / "search-results.json").exists()
+
+
+def test_5_search_pmids_rrn_blocked_at_http_layer(monkeypatch):
+    def fake_urlopen(*_args, **_kwargs):
+        raise AssertionError("HTTP must not fire for a PHI query")
+
+    monkeypatch.setattr(pubmed_search, "urlopen", fake_urlopen)
+    query = f"{QUERY} patient {RRN_DISPLAY}"
+    with pytest.raises(pubmed_search.QueryRejectedError) as caught:
+        pubmed_search.search_pmids(query, email="dev@example.com")
+    message = str(caught.value)
+    assert RRN not in message
+    assert RRN_DISPLAY not in message
+    assert RRN[:6] not in message
+    assert "krn_rrn" in caught.value.rule_ids
+
+
+def test_5_person_name_query_passes_current_pattern_limit():
+    # Limitation: phi_detect text patterns cover RRN / phone / email only.
+    # person_name is column-gated and is not applied to free-text queries.
+    # Expanding query-time name detection is v0.3 — not implemented in this round.
+    transport = FixtureTransport()
+    result = run_search(query="홍길동 sepsis statin mortality", transport=transport)
+    assert transport.calls, "name-only query is sent under current RRN/phone/email patterns"
+    assert result["items"]
+
+
+def test_stdout_does_not_echo_query(tmp_path, capfd, monkeypatch):
+    def fake_request(path, params, timeout=15, attempt=0):
+        mapping = {
+            "esearch.fcgi": "litsearch_pubmed_esearch.xml",
+            "esummary.fcgi": "litsearch_pubmed_esummary.xml",
+            "efetch.fcgi": "litsearch_pubmed_efetch.xml",
+        }
+        return ET.fromstring((FIXTURE_DIR / mapping[path]).read_bytes())
+
+    monkeypatch.setattr(pubmed_search, "_request_xml", fake_request)
+    monkeypatch.setattr(pubmed_search.time, "sleep", lambda *_a, **_k: None)
+    distinctive = "UNIQUE_QUERY_TOKEN_sepsis_statin"
+    rc = pubmed_search.main(
+        [
+            "--query", distinctive,
+            "--email", "user@example.com",
+            "--retmax", "20",
+            "--output", str(tmp_path),
+            "--sources", "pubmed",
+        ]
+    )
+    assert rc == 0
+    captured = capfd.readouterr()
+    blob = captured.out + captured.err
+    assert distinctive not in blob
 
 
 # ---------------------------------------------------------------------------
@@ -396,3 +479,58 @@ def test_contact_header_present_when_set():
     run_search(transport=transport, contact="lab@example.com")
     oa = [c for c in transport.calls if "openalex.org" in c["url"]][0]
     assert "mailto:lab@example.com" in oa["headers"]["User-Agent"]
+
+
+def test_merge_records_failure_is_isolated(monkeypatch):
+    def boom(_items):
+        raise RuntimeError("merge exploded")
+
+    monkeypatch.setattr(pubmed_search, "merge_records", boom)
+    result = run_search()
+    assert result["items"], "unmerged records must still be returned"
+    assert "pubmed" in result["successful_sources"]
+    merge_fail = [row for row in result["failed_sources"] if row.get("source") == "merge"]
+    assert merge_fail == [{"source": "merge", "error": "error"}]
+
+
+def test_request_xml_retry_does_not_echo_query(monkeypatch, capfd):
+    from io import BytesIO
+    from urllib.error import HTTPError
+
+    distinctive = "UNIQUE_RETRY_QUERY_TOKEN"
+    params = {
+        "db": "pubmed",
+        "term": distinctive,
+        "retmax": "20",
+        "retmode": "xml",
+        "tool": "researchfellow",
+        "email": "dev@example.com",
+    }
+    calls = {"n": 0}
+    body = b"<eSearchResult><Count>0</Count><IdList></IdList></eSearchResult>"
+
+    def fake_urlopen(url, timeout=15):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise HTTPError(url, 429, "too many", hdrs=None, fp=BytesIO(b""))
+
+        class _Resp:
+            def read(self):
+                return body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_a):
+                return False
+
+        return _Resp()
+
+    monkeypatch.setattr(pubmed_search, "urlopen", fake_urlopen)
+    monkeypatch.setattr(pubmed_search.time, "sleep", lambda *_a, **_k: None)
+    pubmed_search._request_xml("esearch.fcgi", params)
+    captured = capfd.readouterr()
+    blob = captured.out + captured.err
+    assert distinctive not in blob
+    assert "429" in captured.err
+    assert "pubmed" in captured.err.lower()
