@@ -80,6 +80,9 @@ not oversaturated? Evaluated on the idea before Literature Scoping.
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/pubmed_search.py \
        --query "<query>" --email "<email>" --retmax 20 --output research/02_literature/literature/
    ```
+   Default `--sources all` (pubmed, pmc, europepmc, medrxiv, openalex, crossref). Writes
+   `literature.json` (items, source logs, failed_sources, `degraded`). Legacy PubMed-only:
+   `--sources pubmed`.
 3. Show the top 5–10 titles and ask if the direction looks right; save queries to
    `research/02_literature/literature/queries.json`.
 
@@ -135,7 +138,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/query_guard.py \
 
 stdout JSON (필드명 고정): `{columns, dtypes, result, suppressed, suppression_note, warnings}`
 
-- 단일 레코드로 좁혀지면 `result` 생략, `suppressed=true`. 억제 사실은 알린다.
+- n=1 셀은 개별 제거(제거 건수만 보고). 전체가 1레코드면 `result` 생략, `suppressed=true`.
+  `schema` op는 값을 내지 않으므로 억제 예외. 오류 시 JSON은 `error`/`message` (원본 미포함).
 - PII를 시사하는 컬럼(이름·연락처·주민번호 등)은 마스킹 라벨만.
 - 셀 n≤30이면 `warnings`에 통계 유효성 경고.
 
@@ -174,6 +178,7 @@ Step 9 entry.
 
 **Process:**
 1. Select the primary analysis model from outcome type and design.
+   **Level C 확인:** SAP primary는 사용자 명시 확인 후에만 확정한다 (하드 게이트 아님).
 2. Pre-specify sensitivity and subgroup analyses; specify missing-data handling.
 3. Tell the user: "SAP 승인 후 추가되는 분석은 자동으로 'exploratory'로 표시됩니다."
 

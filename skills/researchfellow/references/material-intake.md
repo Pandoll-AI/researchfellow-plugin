@@ -303,8 +303,9 @@ stdout JSON (필드명 고정):
  "suppression_note": "", "warnings": []}
 ```
 
-- 단일 레코드로 좁혀지면 `result`를 생략하고 `suppressed: true`. 억제 사실은
-  `suppression_note`로 알린다.
+- n=1 셀은 개별 제거(제거 건수만 보고). 전체가 1레코드면 `result` 생략,
+  `suppressed: true`. 억제 사실은 `suppression_note`로 알린다. `schema` op는
+  값을 내지 않으므로 억제 예외. 오류 시 JSON은 `error`/`message` (원본 미포함).
 - 컬럼명이 PII를 시사하면(이름·연락처·주민번호 등) 마스킹 라벨만 출력한다.
 - 셀 도수 n≤30이면 `warnings`에 통계 유효성 경고.
 

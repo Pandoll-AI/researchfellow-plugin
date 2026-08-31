@@ -47,8 +47,8 @@ not change deterministic judgment, gate semantics, or audit behavior.
 
 **AI 행동:** 처리한 뒤 짧게 알린다 (P3 → P5). 묻지 않는다.
 
-예: 변수명 정리, 날짜 형식 통일, 검색어 동의어 확장, Table/Figure formatting,
-통계 코드 작성, 문법 교정, 보고지침 항목 매핑.
+예: 변수명 정리, 날짜 형식 통일, 검색어 동의어 초안 확장(초안은 A, 최종 검색식 확정은 B),
+Table/Figure formatting, 통계 코드 작성, 문법 교정, 보고지침 항목 매핑.
 
 ### Level B — 추천 → 이유 → 대안 → 영향
 
