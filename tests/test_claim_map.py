@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
+import claim_map as cm
+
 SCRIPT = "claim_map.py"
 
 
@@ -116,3 +120,70 @@ def test_5_schema_version_mismatch_is_fail_closed(run_script, fixtures_dir):
     assert proc.returncode != 0
     assert "schema_version mismatch" in proc.stderr
     assert "99" in proc.stderr
+
+
+def test_unmapped_or_was_without_ci(run_script, fixtures_dir):
+    """The crude OR was 1.45. (no CI) → unmapped."""
+    proc = _run(
+        run_script,
+        fixtures_dir / "claimmap_or_was_manuscript.md",
+        fixtures_dir / "claimmap_unmapped_evidence.json",
+    )
+    assert proc.returncode == 0, proc.stderr
+    got = json.loads(proc.stdout)
+    assert got["claims"] == []
+    assert any("OR was 1.45" in item["text"] for item in got["unmapped"])
+
+
+def test_unmapped_ahr(run_script, fixtures_dir):
+    """aHR=0.72 → unmapped."""
+    proc = _run(
+        run_script,
+        fixtures_dir / "claimmap_ahr_manuscript.md",
+        fixtures_dir / "claimmap_unmapped_evidence.json",
+    )
+    assert proc.returncode == 0, proc.stderr
+    got = json.loads(proc.stdout)
+    assert got["claims"] == []
+    assert any("aHR=0.72" in item["text"] for item in got["unmapped"])
+
+
+def test_fake_table_anchor_is_unverified(run_script, fixtures_dir):
+    """<!-- claim: table:999 --> with no Table 999 in the manuscript → unverified."""
+    proc = _run(
+        run_script,
+        fixtures_dir / "claimmap_fake_table_manuscript.md",
+        fixtures_dir / "claimmap_unmapped_evidence.json",
+    )
+    assert proc.returncode == 0, proc.stderr
+    got = json.loads(proc.stdout)
+    assert len(got["claims"]) == 1
+    assert got["claims"][0]["anchor"] == {"kind": "table", "id": "999"}
+    assert got["claims"][0]["status"] == "unverified"
+
+
+def test_schema_version_integer_is_fail_closed(run_script, fixtures_dir):
+    """evidence schema_version: 1 (JSON integer) → fail-closed, including map_claims."""
+    proc = _run(
+        run_script,
+        fixtures_dir / "claimmap_unmapped_manuscript.md",
+        fixtures_dir / "claimmap_schema_int_evidence.json",
+    )
+    assert proc.returncode != 0
+    assert "schema_version mismatch" in proc.stderr
+    with pytest.raises(cm.ClaimMapError, match="schema_version mismatch"):
+        cm.map_claims("# x\n", {"schema_version": 1, "papers": []})
+
+
+def test_text_anchor_non_identifier_is_unverified(run_script, fixtures_dir):
+    """text 앵커 비식별자 → unverified (not mismatch)."""
+    proc = _run(
+        run_script,
+        fixtures_dir / "claimmap_text_nonid_manuscript.md",
+        fixtures_dir / "claimmap_unmapped_evidence.json",
+    )
+    assert proc.returncode == 0, proc.stderr
+    got = json.loads(proc.stdout)
+    assert len(got["claims"]) == 1
+    assert got["claims"][0]["anchor"] == {"kind": "text", "id": "not-an-id"}
+    assert got["claims"][0]["status"] == "unverified"

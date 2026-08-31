@@ -44,13 +44,26 @@ CLAIM_COMMENT_RE = re.compile(r"<!--\s*claim:\s*([^>]*?)\s*-->", re.IGNORECASE)
 PMID_IN_TEXT_RE = re.compile(r"PMID[:\s]*?(\d{6,9})", re.IGNORECASE)
 DOI_IN_TEXT_RE = re.compile(r"10\.\d{4,9}/[^\s\"<>]+")
 
-# Unmapped heuristic: effect-estimate abbreviations with a number, or a CI span.
+# Unmapped heuristic: effect-estimate abbreviations / full names with a number,
+# or a CI span. Connectors: = | : | was | of. CI is not required.
+_EFFECT_ABBREV = r"aOR|aHR|aRR|IRR|SMD|RD|RR|OR|HR"
+_EFFECT_FULL = (
+    r"(?:adjusted\s+)?(?:odds|hazard|risk)\s+ratios?"
+    r"|incidence\s+rate\s+ratios?"
+    r"|standardized\s+mean\s+differences?"
+    r"|risk\s+differences?"
+)
+_EFFECT_CONN = r"(?:=|:|\bwas\b|\bof\b)?"
+_EFFECT_NUM = r"\d+(?:\.\d+)?"
 EFFECT_RE = re.compile(
     r"(?:"
-    r"\b(?:RR|OR|HR)\s*[=:]?\s*\d+(?:\.\d+)?"
-    r"|"
-    r"(?:95\s*%\s*CI|\bCI)\s*[=:]?\s*[\(\[]?\s*\d+(?:\.\d+)?\s*[-–—,to]+\s*\d+(?:\.\d+)?"
-    r")",
+    r"\b(?:%s)\b\s*%s\s*%s"
+    r"|\b(?:%s)\s*%s\s*%s"
+    r"|(?:95\s*%%\s*CI|\bCI)\s*%s\s*[\(\[]?\s*%s\s*[-–—,to]+\s*%s"
+    r")"
+    % (_EFFECT_ABBREV, _EFFECT_CONN, _EFFECT_NUM,
+       _EFFECT_FULL, _EFFECT_CONN, _EFFECT_NUM,
+       _EFFECT_CONN, _EFFECT_NUM, _EFFECT_NUM),
     re.IGNORECASE,
 )
 
@@ -62,7 +75,18 @@ class ClaimMapError(Exception):
 
 
 def _schema_version_ok(raw: Any) -> bool:
-    return str(raw) == EXPECTED_SCHEMA_VERSION
+    """Template declares schema_version as the JSON string "1", not the integer 1."""
+    return raw == EXPECTED_SCHEMA_VERSION
+
+
+def require_schema_version(evidence: Dict[str, Any]) -> None:
+    if not isinstance(evidence, dict):
+        raise ClaimMapError("evidence must be a JSON object")
+    if "schema_version" not in evidence or not _schema_version_ok(evidence.get("schema_version")):
+        raise ClaimMapError(
+            "schema_version mismatch: expected "
+            f"{EXPECTED_SCHEMA_VERSION!r}, got {evidence.get('schema_version')!r}"
+        )
 
 
 def _normalize_doi(value: str) -> str:
@@ -100,13 +124,7 @@ def load_evidence(path: str) -> Dict[str, Any]:
             data = json.load(f)
         except json.JSONDecodeError as exc:
             raise ClaimMapError(f"evidence is not valid JSON: {exc}") from exc
-    if not isinstance(data, dict):
-        raise ClaimMapError("evidence must be a JSON object")
-    if "schema_version" not in data or not _schema_version_ok(data.get("schema_version")):
-        raise ClaimMapError(
-            "schema_version mismatch: expected "
-            f"{EXPECTED_SCHEMA_VERSION!r}, got {data.get('schema_version')!r}"
-        )
+    require_schema_version(data)
     papers = data.get("papers", [])
     if papers is None:
         papers = []
@@ -193,6 +211,23 @@ def covered_span(manuscript: str, match_start: int, match_end: int) -> Tuple[int
     return match_start, match_end
 
 
+def output_present(manuscript: str, kind: str, ident: str) -> bool:
+    """True when authored prose names this table/figure (caption, xref, or header).
+
+    Looks for ``Table 2`` / ``Tbl. 2`` or ``Figure 1`` / ``Fig. 1`` (and
+    unsuffixed Fig/Tbl) in comment-stripped markdown. Local, no network.
+    """
+    if kind not in ("table", "figure"):
+        return False
+    authored = _mask_comments(manuscript)
+    ident_esc = re.escape(ident)
+    if kind == "table":
+        pattern = rf"\b(?:Tables?|Tbl\.?)\s*{ident_esc}\b"
+    else:
+        pattern = rf"\b(?:Figures?|Fig\.?)\s*{ident_esc}\b"
+    return bool(re.search(pattern, authored, flags=re.IGNORECASE))
+
+
 def extract_sources(kind: str, anchor_id: str, text: str,
                     index: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     sources: List[Dict[str, Any]] = []
@@ -223,19 +258,22 @@ def extract_sources(kind: str, anchor_id: str, text: str,
     return sources
 
 
-def claim_status(kind: str, anchor_id: str, sources: List[Dict[str, Any]]) -> str:
+def claim_status(kind: str, anchor_id: str, sources: List[Dict[str, Any]],
+                 manuscript: str = "") -> str:
     """verified | unverified | mismatch — local, no network.
 
     verified   : every PMID/DOI is present in evidence and well-formed;
-                 table/figure anchors with no literature ids count as verified
-                 (the table/figure id *is* the numeric-claim source).
+                 table/figure anchors are verified only when that output is
+                 named in the manuscript (caption / xref / header).
     unverified : identifiers are well-formed but none exist in evidence
-                 (hallucinated citation), or a text anchor has no parseable id.
-    mismatch   : at least one identifier hits evidence and another does not,
-                 or a text-kind id is neither a PMID nor a DOI (type mismatch).
+                 (hallucinated citation); a text anchor whose id is not a
+                 PMID/DOI; or a table/figure id that the manuscript never names.
+    mismatch   : at least one identifier hits evidence and another does not.
     """
     if kind == "text" and parse_identifier(anchor_id) is None:
-        return "mismatch"
+        return "unverified"
+    if kind in ("table", "figure") and not output_present(manuscript, kind, anchor_id):
+        return "unverified"
     if not sources:
         if kind in ("table", "figure"):
             return "verified"
@@ -278,7 +316,7 @@ def parse_claims(manuscript: str, index: Dict[str, Dict[str, Any]]) -> List[Dict
             "text": text,
             "anchor": {"kind": kind, "id": ident},
             "sources": sources,
-            "status": claim_status(kind, ident, sources),
+            "status": claim_status(kind, ident, sources, manuscript),
         })
     return claims
 
@@ -309,6 +347,7 @@ def unmapped_estimates(manuscript: str, claim_matches: List[re.Match[str]]) -> L
 
 
 def map_claims(manuscript: str, evidence: Dict[str, Any]) -> Dict[str, Any]:
+    require_schema_version(evidence)
     index = index_evidence(evidence)
     claims = parse_claims(manuscript, index)
     claim_matches = list(CLAIM_RE.finditer(manuscript))
