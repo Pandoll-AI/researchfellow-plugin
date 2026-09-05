@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+import query_guard as qg
+
 SCRIPT = "query_guard.py"
 CONTRACT_KEYS = {"columns", "dtypes", "result", "suppressed", "suppression_note", "warnings"}
 SUPPRESSION_NOTE = "1건 결과는 공개하지 않음"
@@ -290,3 +292,174 @@ def test_8_dtypes_use_full_table_scan(run_script, fixtures_dir):
     assert payload["dtypes"]["id"] == "integer"
     assert payload["dtypes"]["flag"] == "binary"
     assert "20.5" not in _blob(proc)
+
+
+# ---------------------------------------------------------------------------
+# Bounded privacy / correctness: finite support, nonfinite tokens, masked pool
+# ---------------------------------------------------------------------------
+def test_numeric_stats_withholds_singleton_measurement():
+    assert qg._numeric_stats(["987.25", ""], "float") is None
+    assert qg._numeric_stats(["987.25"], "float") is None
+    stats = qg._numeric_stats(["1", "3"], "integer")
+    assert stats is not None
+    assert stats["mean"] == 2
+    assert stats["min"] == 1
+    assert stats["max"] == 3
+    assert "_n" not in stats
+
+
+def test_numeric_stats_nan_infinity_safe():
+    assert qg._numeric_stats(["NaN", "2"], "float") is None
+    assert qg._numeric_stats(["Infinity", "2"], "float") is None
+    assert qg._numeric_stats(["-Infinity", "2"], "float") is None
+    stats = qg._numeric_stats(["NaN", "Infinity", "2", "4"], "float")
+    assert stats is not None
+    assert stats["mean"] == 3.0
+    assert stats["min"] == 2.0
+    assert stats["max"] == 4.0
+    dumped = json.dumps(stats, allow_nan=False)
+    assert "NaN" not in dumped
+    assert "Infinity" not in dumped
+    assert "inf" not in dumped.lower()
+
+
+def test_collapse_cells_weights_by_finite_sample_count_not_group_size():
+    cells = [
+        {
+            "by": {"name": "***MASKED(name)***"},
+            "n": 3,
+            "values": {"score": {"mean": 20.0, "min": 10, "max": 30, "_n": 2}},
+        },
+        {
+            "by": {"name": "***MASKED(name)***"},
+            "n": 4,
+            "values": {"score": {"mean": 100.0, "min": 100, "max": 100, "_n": 4}},
+        },
+    ]
+    merged = qg._collapse_cells(cells, ["name"])
+    assert len(merged) == 1
+    assert int(merged[0]["n"]) == 7
+    stats = merged[0]["values"]["score"]
+    # Group-size weights would be (20*3 + 100*4)/7 ≈ 65.71; sample count → 73.333333.
+    assert stats["mean"] == 73.333333
+    assert stats["min"] == 10
+    assert stats["max"] == 100
+    assert stats["_n"] == 6
+
+
+def test_agg_withholds_singleton_measurement_keeps_group_freq(run_script, tmp_path):
+    path = tmp_path / "singleton_measure.csv"
+    path.write_text("arm,score,age\nA,987.25,10\nA,,20\n", encoding="utf-8")
+    proc = run_script(SCRIPT, "--data", str(path), "--op", "agg", "--by", "arm")
+    assert proc.returncode == 0, proc.stderr
+    blob = _blob(proc)
+    payload = _payload(proc)
+    json.loads(proc.stdout)  # valid JSON (no NaN/Infinity tokens)
+    assert payload["suppressed"] is False
+    cells = payload["result"]["cells"]
+    assert len(cells) == 1
+    assert int(cells[0]["n"]) == 2
+    values = cells[0].get("values", {})
+    assert "score" not in values
+    assert "age" in values
+    assert values["age"]["mean"] == 15
+    assert values["age"]["min"] == 10
+    assert values["age"]["max"] == 20
+    _assert_no_leak(blob, "987.25")
+
+
+def test_agg_n1_rows_still_suppressed(run_script, fixtures_dir):
+    proc = _run(run_script, fixtures_dir, "queryguard_singleton_group.csv", "agg", "group")
+    assert proc.returncode == 0, proc.stderr
+    payload = _payload(proc)
+    assert payload["suppressed"] is False
+    cells = payload["result"]["cells"]
+    groups = {cell["by"]["group"] for cell in cells}
+    assert "A" in groups
+    assert "SOLO" not in groups
+    assert all(int(cell["n"]) > 1 for cell in cells)
+    _assert_no_leak(_blob(proc), *SOLO_SECRETS)
+
+
+def test_masked_merge_weights_by_nonmissing_before_aggregation():
+    records = [
+        {"patient_name": "Alice", "score": "10"},
+        {"patient_name": "Alice", "score": "30"},
+        {"patient_name": "Alice", "score": ""},
+        {"patient_name": "Bob", "score": "100"},
+        {"patient_name": "Bob", "score": "100"},
+        {"patient_name": "Bob", "score": "100"},
+        {"patient_name": "Bob", "score": "100"},
+    ]
+    dtypes = {"patient_name": qg.DTYPE_STRING, "score": qg.DTYPE_INTEGER}
+    result = qg.build_agg_result(records, ["patient_name"], dtypes, {"patient_name": "name"})
+    cells = result["cells"]
+    assert len(cells) == 1
+    assert cells[0]["by"]["patient_name"] == "***MASKED(name)***"
+    assert int(cells[0]["n"]) == 7
+    stats = cells[0]["values"]["score"]
+    # Pooled finite values [10, 30, 100, 100, 100, 100]; group-size weights ≈ 65.71.
+    assert stats["mean"] == 73.333333
+    assert stats["min"] == 10
+    assert stats["max"] == 100
+    assert "_n" not in stats
+    dumped = json.dumps(cells, allow_nan=False)
+    assert "Alice" not in dumped
+    assert "Bob" not in dumped
+
+
+def test_masked_groups_preserve_first_seen_order():
+    records = [
+        {"sex": "M", "patient_name": "A", "score": "1"},
+        {"sex": "F", "patient_name": "B", "score": "2"},
+        {"sex": "M", "patient_name": "C", "score": "3"},
+        {"sex": "F", "patient_name": "D", "score": "4"},
+    ]
+    dtypes = {
+        "sex": qg.DTYPE_CATEGORICAL,
+        "patient_name": qg.DTYPE_STRING,
+        "score": qg.DTYPE_INTEGER,
+    }
+    result = qg.build_agg_result(
+        records, ["sex", "patient_name"], dtypes, {"patient_name": "name"}
+    )
+    cells = result["cells"]
+    assert [cell["by"]["sex"] for cell in cells] == ["M", "F"]
+    assert all(cell["by"]["patient_name"] == "***MASKED(name)***" for cell in cells)
+    assert [int(cell["n"]) for cell in cells] == [2, 2]
+    assert cells[0]["values"]["score"]["mean"] == 2
+    assert cells[1]["values"]["score"]["mean"] == 3
+
+
+def test_unmasked_n1_cell_has_no_values():
+    raw = qg.build_agg_result(
+        [{"arm": "Z", "score": "8"}],
+        ["arm"],
+        {"arm": qg.DTYPE_CATEGORICAL, "score": qg.DTYPE_INTEGER},
+        {},
+    )
+    assert int(raw["cells"][0]["n"]) == 1
+    assert "values" not in raw["cells"][0]
+
+
+def test_cli_nan_infinity_safe_json(run_script, tmp_path):
+    path = tmp_path / "nonfinite.csv"
+    path.write_text(
+        "arm,score\nA,2\nA,NaN\nA,4\nA,Infinity\nA,-Infinity\nA,1e400\n",
+        encoding="utf-8",
+    )
+    proc = run_script(SCRIPT, "--data", str(path), "--op", "agg", "--by", "arm")
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    blob = _blob(proc)
+    assert payload["suppressed"] is False
+    cells = payload["result"]["cells"]
+    assert len(cells) == 1
+    assert int(cells[0]["n"]) == 6
+    stats = cells[0]["values"]["score"]
+    assert stats["mean"] == 3.0
+    assert stats["min"] == 2.0
+    assert stats["max"] == 4.0
+    joined = " ".join(str(w) for w in payload["warnings"])
+    assert qg.NONFINITE_WARNING in joined
+    _assert_no_leak(blob, "NaN", "Infinity", "-Infinity", "1e400", "inf", "Inf")

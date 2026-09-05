@@ -187,3 +187,135 @@ def test_text_anchor_non_identifier_is_unverified(run_script, fixtures_dir):
     assert len(got["claims"]) == 1
     assert got["claims"][0]["anchor"] == {"kind": "text", "id": "not-an-id"}
     assert got["claims"][0]["status"] == "unverified"
+
+
+_EMPTY_EVIDENCE = {"schema_version": "1", "papers": []}
+
+
+def test_malformed_ids_cannot_verify_even_when_in_evidence():
+    """Syntactic junk in evidence.json must not become verified=true."""
+    for bad in ("10.fake", "10.123", "10.1234", "10.123/foo", "10.1234567890/x"):
+        report = cm.map_claims(
+            f"Result <!-- claim: text:{bad} -->",
+            {"schema_version": "1", "papers": [{"doi": bad, "pmid": bad}]},
+        )
+        assert report["claims"], bad
+        claim = report["claims"][0]
+        assert claim["status"] == "unverified", bad
+        assert all(not src["verified"] for src in claim["sources"]), (bad, claim["sources"])
+        assert cm.parse_identifier(bad) is None, bad
+
+
+def test_valid_doi_forms_preserve_identity():
+    ident = "10.1001/JAMA.2024.1234"
+    assert cm.parse_identifier(ident) == ("doi", ident)
+    assert cm.parse_identifier("https://doi.org/" + ident) == ("doi", ident)
+    assert cm.parse_identifier("https://dx.doi.org/" + ident) == ("doi", ident)
+    assert cm.parse_identifier("http://doi.org/" + ident) == ("doi", ident)
+    assert cm.parse_identifier("doi:" + ident) == ("doi", ident)
+    assert cm.parse_identifier("DOI: " + ident) == ("doi", ident)
+
+    paren = "10.1234/foo(bar)"
+    assert cm.parse_identifier(paren) == ("doi", paren)
+    assert cm.parse_identifier(paren + ".") == ("doi", paren)
+    assert cm.parse_identifier(paren + ").") == ("doi", paren)
+    assert cm._normalize_doi(paren) == paren
+
+    evidence = {
+        "schema_version": "1",
+        "papers": [{"doi": "https://doi.org/10.1001/jama.2024.1234"}],
+    }
+    report = cm.map_claims(
+        f"Cite ({ident}). <!-- claim: text:{ident} -->",
+        evidence,
+    )
+    claim = report["claims"][0]
+    assert claim["status"] == "verified"
+    doi_src = [s for s in claim["sources"] if s["type"] == "doi"]
+    assert doi_src[0]["id"] == ident
+    assert doi_src[0]["verified"] is True
+
+
+def test_pmid_numeric_behavior_preserved():
+    assert cm.parse_identifier("123") == ("pmid", "123")
+    assert cm.parse_identifier("38812345") == ("pmid", "38812345")
+    assert cm.parse_identifier("PMID:38812345") == ("pmid", "38812345")
+    report = cm.map_claims(
+        "n=1 <!-- claim: text:123 -->",
+        {"schema_version": "1", "papers": [{"pmid": "123"}]},
+    )
+    assert report["claims"][0]["status"] == "verified"
+    assert report["claims"][0]["sources"] == [
+        {"type": "pmid", "id": "123", "verified": True},
+    ]
+
+
+def test_signed_estimates_unmapped_without_anchor():
+    cases = [
+        "SMD = -0.45.",
+        "RD = \u22120.2.",
+        "SMD = .5.",
+        "HR = +1.2e-3.",
+        "OR = 1.2e-3",
+        "95% CI -0.2 to 0.3",
+        "SMD = -.5",
+    ]
+    for text in cases:
+        assert cm.EFFECT_RE.search(text), text
+        report = cm.map_claims(text, _EMPTY_EVIDENCE)
+        assert report["claims"] == [], text
+        assert report["unmapped"], text
+        assert report["unmapped"][0]["text"] == text
+
+
+def test_anchored_estimates_remain_mapped():
+    manuscript = (
+        "The SMD = -0.45.\n"
+        "<!-- claim: table:2 -->\n"
+        "\n"
+        "RD = \u22120.2.\n"
+        "<!-- claim: table:2 -->\n"
+        "\n"
+        "**Table 2.** Results.\n"
+    )
+    report = cm.map_claims(manuscript, _EMPTY_EVIDENCE)
+    assert report["unmapped"] == []
+    assert [c["status"] for c in report["claims"]] == ["verified", "verified"]
+    assert [c["text"] for c in report["claims"]] == [
+        "The SMD = -0.45.",
+        "RD = \u22120.2.",
+    ]
+
+
+def test_duplicate_anchor_output_preserves_manuscript_order():
+    manuscript = (
+        "First SMD = -0.45.\n"
+        "<!-- claim: table:2 -->\n"
+        "\n"
+        "Second SMD = .5.\n"
+        "<!-- claim: table:2 -->\n"
+        "\n"
+        "Table 2. Results.\n"
+    )
+    report = cm.map_claims(manuscript, _EMPTY_EVIDENCE)
+    assert [c["anchor"] for c in report["claims"]] == [
+        {"kind": "table", "id": "2"},
+        {"kind": "table", "id": "2"},
+    ]
+    assert [c["text"] for c in report["claims"]] == [
+        "First SMD = -0.45.",
+        "Second SMD = .5.",
+    ]
+    assert report["unmapped"] == []
+
+
+def test_effect_word_boundaries_skip_unrelated_prose():
+    for text in (
+        "STANDARD = 1.0",
+        "The ASMD value is unrelated",
+        "ORDER 5 was submitted.",
+        "HR department 12",
+    ):
+        assert cm.EFFECT_RE.search(text) is None, text
+        report = cm.map_claims(text, _EMPTY_EVIDENCE)
+        assert report["unmapped"] == [], text

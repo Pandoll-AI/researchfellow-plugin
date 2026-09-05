@@ -42,7 +42,11 @@ CLAIM_RE = re.compile(
 CLAIM_COMMENT_RE = re.compile(r"<!--\s*claim:\s*([^>]*?)\s*-->", re.IGNORECASE)
 
 PMID_IN_TEXT_RE = re.compile(r"PMID[:\s]*?(\d{6,9})", re.IGNORECASE)
-DOI_IN_TEXT_RE = re.compile(r"10\.\d{4,9}/[^\s\"<>]+")
+# Shape: 10.<4-9 digits>/<nonempty suffix>. In-text and validator share this.
+DOI_BODY = r"10\.\d{4,9}/[^\s\"<>]+"
+DOI_IN_TEXT_RE = re.compile(DOI_BODY)
+DOI_SHAPE_RE = re.compile(rf"^{DOI_BODY}$", re.IGNORECASE)
+PMID_SHAPE_RE = re.compile(r"\d+")
 
 # Unmapped heuristic: effect-estimate abbreviations / full names with a number,
 # or a CI span. Connectors: = | : | was | of. CI is not required.
@@ -54,7 +58,11 @@ _EFFECT_FULL = (
     r"|risk\s+differences?"
 )
 _EFFECT_CONN = r"(?:=|:|\bwas\b|\bof\b)?"
-_EFFECT_NUM = r"\d+(?:\.\d+)?"
+# ASCII +/- , Unicode minus; leading decimals; scientific endpoints.
+_MINUS = "\u2212"
+_EFFECT_NUM = (
+    rf"[+\-{_MINUS}]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+\-{_MINUS}]?\d+)?"
+)
 EFFECT_RE = re.compile(
     r"(?:"
     r"\b(?:%s)\b\s*%s\s*%s"
@@ -89,33 +97,49 @@ def require_schema_version(evidence: Dict[str, Any]) -> None:
         )
 
 
+def _strip_doi_trailing_punct(s: str) -> str:
+    """Strip prose punctuation; keep balanced parentheses that belong to the DOI."""
+    while s:
+        last = s[-1]
+        if last in ".,;":
+            s = s[:-1]
+            continue
+        if last == ")" and s.count(")") > s.count("("):
+            s = s[:-1]
+            continue
+        if last == "]" and s.count("]") > s.count("["):
+            s = s[:-1]
+            continue
+        break
+    return s
+
+
 def _normalize_doi(value: str) -> str:
     s = value.strip()
     s = re.sub(r"^https?://(dx\.)?doi\.org/", "", s, flags=re.IGNORECASE)
     s = re.sub(r"^doi:\s*", "", s, flags=re.IGNORECASE)
-    return s.rstrip(").,;]")
-
-
-def parse_identifier(raw: str) -> Optional[Tuple[str, str]]:
-    """Return (type, id) for a PMID or DOI token, else None."""
-    s = raw.strip()
-    s = re.sub(r"^(PMID|doi)\s*:\s*", "", s, flags=re.IGNORECASE)
-    s = _normalize_doi(s) if not re.fullmatch(r"\d+", s) else s
-    if re.fullmatch(r"\d+", s):
-        return ("pmid", s)
-    if s.lower().startswith("10."):
-        doi = s.rstrip(").,;]")
-        if doi.lower().startswith("10."):
-            return ("doi", doi)
-    return None
+    return _strip_doi_trailing_punct(s)
 
 
 def _identifier_format_ok(kind: str, ident: str) -> bool:
+    """Local PMID/DOI syntax only. Presence here is not scientific validity."""
     if kind == "pmid":
-        return bool(re.fullmatch(r"\d+", ident))
+        return bool(PMID_SHAPE_RE.fullmatch(ident))
     if kind == "doi":
-        return ident.startswith("10.")
+        return bool(DOI_SHAPE_RE.fullmatch(ident))
     return False
+
+
+def parse_identifier(raw: str) -> Optional[Tuple[str, str]]:
+    """Return (type, id) for a well-formed PMID or DOI token, else None."""
+    s = raw.strip()
+    s = re.sub(r"^(PMID|doi)\s*:\s*", "", s, flags=re.IGNORECASE)
+    if _identifier_format_ok("pmid", s):
+        return ("pmid", s)
+    doi = _normalize_doi(s)
+    if _identifier_format_ok("doi", doi):
+        return ("doi", doi)
+    return None
 
 
 def load_evidence(path: str) -> Dict[str, Any]:
@@ -142,12 +166,12 @@ def index_evidence(evidence: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         if not isinstance(paper, dict):
             continue
         pmid = str(paper.get("pmid") or "").strip()
-        if pmid and re.fullmatch(r"\d+", pmid):
+        if pmid and _identifier_format_ok("pmid", pmid):
             pmids[pmid] = paper
         doi_raw = str(paper.get("doi") or "").strip()
         if doi_raw:
             doi = _normalize_doi(doi_raw)
-            if doi.startswith("10."):
+            if _identifier_format_ok("doi", doi):
                 dois[doi.lower()] = paper
     return {"pmids": pmids, "dois": dois}
 
@@ -235,7 +259,7 @@ def extract_sources(kind: str, anchor_id: str, text: str,
 
     def add(type_: str, ident: str) -> None:
         ident = ident.strip()
-        if not ident:
+        if not ident or not _identifier_format_ok(type_, ident):
             return
         key = (type_, ident.lower() if type_ == "doi" else ident)
         if key in seen:
@@ -262,12 +286,14 @@ def claim_status(kind: str, anchor_id: str, sources: List[Dict[str, Any]],
                  manuscript: str = "") -> str:
     """verified | unverified | mismatch — local, no network.
 
-    verified   : every PMID/DOI is present in evidence and well-formed;
+    verified   : every PMID/DOI is syntactically well-formed and present in
+                 the local evidence table (not a scientific-validity judgment);
                  table/figure anchors are verified only when that output is
                  named in the manuscript (caption / xref / header).
     unverified : identifiers are well-formed but none exist in evidence
                  (hallucinated citation); a text anchor whose id is not a
-                 PMID/DOI; or a table/figure id that the manuscript never names.
+                 well-formed PMID/DOI; or a table/figure id that the
+                 manuscript never names.
     mismatch   : at least one identifier hits evidence and another does not.
     """
     if kind == "text" and parse_identifier(anchor_id) is None:

@@ -626,27 +626,38 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
               file=sys.stderr)
         sys.exit(1)
 
-    # Check real-data gates. Prefer state.json v2 via state_tool's shared
-    # check_real_data_gates (gate.feasibility/protocol/qc). Fall back to the
-    # legacy gates.json {"4","5","9"} logic when state is v1 or absent.
+    # Check real-data gates. Any existing state.json is authoritative and is
+    # judged by the shared check_real_data_gates (v1/v2/v3, including hybrid
+    # and unsupported). Never fall through to gates.json when state is present
+    # — including wrong top-level JSON shapes and missing shared imports.
+    # Legacy gates.json is accepted only when state is genuinely absent.
     state_path = resolve_state_path(project_dir) if resolve_state_path else os.path.join(project_dir, "state.json")
     gates_path = os.path.join(project_dir, "gates.json")
 
-    state = None
     if os.path.exists(state_path):
         try:
-            with open(state_path) as f:
+            with open(state_path, encoding="utf-8") as f:
                 state = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            # Corrupted state must block, never silently fall through (FR-G4).
+        except (json.JSONDecodeError, OSError, UnicodeError):
+            # Corrupted / non-UTF-8 state must block, never traceback (FR-G4).
             print("ERROR: state.json exists but is unreadable. Fix it before real analysis.", file=sys.stderr)
             sys.exit(1)
-
-    if (state is not None and check_real_data_gates is not None
-            and detect_schema is not None and detect_schema(state)[0] in ("v2", "v3")):
+        if not isinstance(state, dict):
+            print("ERROR: state.json must be a JSON object. Fix it before real analysis.", file=sys.stderr)
+            sys.exit(1)
+        if check_real_data_gates is None or detect_schema is None:
+            print("ERROR: shared real-data gate validation is unavailable. "
+                  "Cannot run real analysis against existing state.", file=sys.stderr)
+            sys.exit(1)
         # Last physical line of defence: re-runs do_validate via check_real_data_gates
-        # and also requires on-disk qc_report when project_dir is provided.
-        ok, missing = check_real_data_gates(state, project_dir)
+        # (v1/v2/v3) and also requires on-disk qc_report when project_dir is provided.
+        # Nested malformed gates/steps raise parse-type errors inside the shared
+        # validator; fail closed here so we do not rewrite state_tool.
+        try:
+            ok, missing = check_real_data_gates(state, project_dir)
+        except (TypeError, AttributeError, ValueError):
+            print("ERROR: state.json has an invalid shape. Fix it before real analysis.", file=sys.stderr)
+            sys.exit(1)
         if not ok:
             if missing == ["state_integrity"] or "state_integrity" in missing:
                 print("ERROR: State integrity violations block real analysis. "
@@ -656,26 +667,35 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
             sys.exit(1)
     elif os.path.exists(gates_path):
         try:
-            with open(gates_path) as f:
+            with open(gates_path, encoding="utf-8") as f:
                 gates = json.load(f)
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError, UnicodeError):
             print("ERROR: gates.json exists but is unreadable. Fix it before real analysis.", file=sys.stderr)
             sys.exit(1)
         required = {"4", "5", "9"}
-        approved = {g for g, info in gates.items() if info.get("status") == "approved"}
+        if not isinstance(gates, dict):
+            print("ERROR: gates.json must be a JSON object of gate records.", file=sys.stderr)
+            sys.exit(1)
+        for key in required:
+            info = gates.get(key)
+            if info is not None and not isinstance(info, dict):
+                print("ERROR: gates.json gate records must be objects.", file=sys.stderr)
+                sys.exit(1)
+        approved = {g for g in required if isinstance(gates.get(g), dict) and gates[g].get("status") == "approved"}
         missing = required - approved
         if missing:
             print(f"ERROR: Missing required gate approvals: {sorted(missing)}", file=sys.stderr)
             sys.exit(1)
     else:
-        # No approval evidence at all (no v2 state, no legacy gates.json):
+        # No approval evidence at all (no state.json, no legacy gates.json):
         # real-data analysis is gated, so absence of gates means blocked.
-        print("ERROR: No gate approval record found (state.json v2 or gates.json). "
+        print("ERROR: No gate approval record found (state.json or gates.json). "
               "Real analysis requires gate.feasibility, gate.protocol and gate.qc approvals.", file=sys.stderr)
         sys.exit(1)
 
-    # Check QC — fail-closed: missing file, unreadable file, missing has_critical
-    # key (legacy reports), or explicit has_critical:true all block.
+    # Check QC — fail-closed: missing file, unreadable file, non-object payload,
+    # missing has_critical key (legacy reports), or anything other than explicit
+    # boolean has_critical:false all block. Messages are static (no raw echo).
     qc_path = (resolve_qc_report_path(project_dir) if resolve_qc_report_path
                else os.path.join(project_dir, "qc-report.json"))
     if not os.path.exists(qc_path):
@@ -683,10 +703,14 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
               "with has_critical:false before real analysis.", file=sys.stderr)
         sys.exit(1)
     try:
-        with open(qc_path) as f:
+        with open(qc_path, encoding="utf-8") as f:
             qc = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeError):
         print("ERROR: qc-report.json exists but is unreadable. Resolve before real analysis.", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(qc, dict):
+        print("ERROR: QC report must be a JSON object with an explicit boolean "
+              "has_critical:false.", file=sys.stderr)
         sys.exit(1)
     if "has_critical" not in qc:
         print("ERROR: QC report is missing required has_critical key "
@@ -698,8 +722,8 @@ def run_real(project_dir: str, data_path: str, sap_version: str) -> dict:
         print("ERROR: QC has critical flags. Resolve before running real analysis.", file=sys.stderr)
         sys.exit(1)
     if has_critical is not False:
-        print("ERROR: QC report has invalid/ambiguous has_critical value "
-              f"({has_critical!r}); require explicit boolean false.", file=sys.stderr)
+        print("ERROR: QC report has invalid/ambiguous has_critical value; "
+              "require explicit boolean false.", file=sys.stderr)
         sys.exit(1)
 
     counts, glm_fit, cox_fit = _load_and_fit(data_path)
