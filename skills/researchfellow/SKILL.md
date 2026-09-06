@@ -120,6 +120,8 @@ Options:
 
 ## Initialization routing (on `/rf` or `/researchfellow`)
 
+**Argument is exactly `doctor` → stop here.** Do not read or create any project state. Run `scripts/env_check.py` (pass `--project-dir research` if that directory exists, so the report can say whether a project is present), print the JSON, then explain in 3 lines: available modes, `next_action`, and whether the MCP server was reachable. Then end the turn — no S0, no S1, no `project_layout.py init`.
+
 Read the legacy state schema before deciding whether migration is applicable. Check
 whether `research/.system/state.json` exists first.
 
@@ -140,7 +142,6 @@ succeeds. Invalid or mixed legacy state is a repair blocker, not a migration can
 
 **Neither exists →** run `project_layout.py init --project-dir research`, then continue with the
 new-project path below.
-**Argument is exactly `doctor` →** run `scripts/env_check.py` (add `--project-dir research` when a project exists), print the JSON, then explain in 3 lines: which modes are available, what `next_action` says, and whether the MCP server was reachable. Do not start S1.
 **Absent, argument is free-text →** go straight to S1 (treat the text as the idea).
 
 **Absent, no usable argument →** show the 5+1 starting points with AskUserQuestion,

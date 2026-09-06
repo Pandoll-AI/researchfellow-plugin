@@ -25,10 +25,13 @@ MCP_TIMEOUT_SECONDS = 3
 PACKAGE_NAMES = ("pandas", "statsmodels", "lifelines")
 PLUGIN_JSON = Path(__file__).resolve().parents[3] / ".claude-plugin" / "plugin.json"
 
+DEFAULT_PROJECT_DIR_NAME = "research"
+STATE_RELATIVE = Path(".system") / "state.json"
 NEXT_ACTION_REAL = "실데이터 분석 가능. 합성 데모부터 시작하려면 /rf 아이디어 한 줄"
 NEXT_ACTION_SYNTHETIC = (
     "합성 데모부터 시작: /rf <아이디어 한 줄>. 실데이터 분석 전 pip install -r requirements.txt"
 )
+NEXT_ACTION_PROJECT = "프로젝트가 있습니다. /rf 로 이어서 진행"
 
 PING_PAYLOAD = {
     "jsonrpc": "2.0",
@@ -155,18 +158,67 @@ def check_mcp(url: str) -> Dict[str, Any]:
         return {"url": url, "reachable": False, "server_version": None}
 
 
-def build_report(*, mcp_url: str = DEFAULT_MCP_URL) -> Dict[str, Any]:
+def _resolve_project_dir(project_dir: Optional[str]) -> Path:
+    if project_dir:
+        return Path(project_dir).expanduser().resolve()
+    return (Path.cwd() / DEFAULT_PROJECT_DIR_NAME).resolve()
+
+
+def _read_schema_version(state_path: Path) -> Optional[int]:
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    raw = payload.get("schema_version")
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return None
+    return raw
+
+
+def _project_info(project_dir: Optional[str] = None) -> Dict[str, Any]:
+    resolved = _resolve_project_dir(project_dir)
+    state_path = resolved / STATE_RELATIVE
+    if not state_path.is_file():
+        return {"dir": str(resolved), "exists": False, "schema_version": None}
+    return {
+        "dir": str(resolved),
+        "exists": True,
+        "schema_version": _read_schema_version(state_path),
+    }
+
+
+def _next_action(*, exists: bool, synthetic: bool, real: bool) -> str:
+    if exists and synthetic:
+        return NEXT_ACTION_PROJECT
+    if real:
+        return NEXT_ACTION_REAL
+    return NEXT_ACTION_SYNTHETIC
+
+
+def build_report(
+    *,
+    mcp_url: str = DEFAULT_MCP_URL,
+    project_dir: Optional[str] = None,
+) -> Dict[str, Any]:
     python = _python_info()
     packages = {name: _package_version(name) for name in PACKAGE_NAMES}
     synthetic = bool(python["ok"])
     real = bool(python["ok"] and all(packages.values()))
+    project = _project_info(project_dir)
     return {
         "python": python,
         "packages": packages,
         "plugin_version": _plugin_version(),
         "mcp": check_mcp(mcp_url),
         "modes": {"synthetic": synthetic, "real": real},
-        "next_action": NEXT_ACTION_REAL if real else NEXT_ACTION_SYNTHETIC,
+        "next_action": _next_action(
+            exists=bool(project["exists"]),
+            synthetic=synthetic,
+            real=real,
+        ),
+        "project": project,
     }
 
 
@@ -179,7 +231,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
-    report = build_report(mcp_url=args.mcp_url)
+    report = build_report(mcp_url=args.mcp_url, project_dir=args.project_dir)
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0 if report["python"]["ok"] else 1
 
