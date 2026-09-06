@@ -322,21 +322,39 @@ def _last_pre_t0_chosen(records: List[Dict[str, Any]], field: Any, t0: datetime)
 
 
 def _post_hoc_ids(records: List[Dict[str, Any]], t0: datetime) -> List[str]:
-    ids: List[str] = []
+    """Return ids of post-T0 primary_* changes that are still in effect.
+
+    A field is judged by its *latest* post-T0 decision record: if that record
+    reverts to the last pre-T0 value, the whole field is treated as restored and
+    none of its earlier post-hoc records are reported. Exploratory and
+    knowledge_check records never count.
+    """
+    by_field: Dict[str, List[Dict[str, Any]]] = {}
     for record in records:
         if record.get("kind") != "decision":
             continue
-        if record.get("field") not in POST_HOC_FIELDS:
+        field = record.get("field")
+        if field not in POST_HOC_FIELDS:
             continue
         at = _parse_iso(record.get("at"))
         if at is None or not (at > t0):
             continue
-        baseline = _last_pre_t0_chosen(records, record.get("field"), t0)
-        if isinstance(record.get("chosen"), str) and baseline is not None and record.get("chosen") == baseline:
-            continue
-        decision_id = record.get("id")
-        if isinstance(decision_id, str):
-            ids.append(decision_id)
+        by_field.setdefault(field, []).append(record)
+
+    ids: List[str] = []
+    for field, post in by_field.items():
+        baseline = _last_pre_t0_chosen(records, field, t0)
+        post.sort(key=lambda r: (_parse_iso(r.get("at")) or t0, str(r.get("id"))))
+        latest = post[-1].get("chosen")
+        if baseline is not None and isinstance(latest, str) and latest == baseline:
+            continue  # reverted — field restored to its pre-specified value
+        for record in post:
+            chosen = record.get("chosen")
+            if baseline is not None and isinstance(chosen, str) and chosen == baseline:
+                continue
+            decision_id = record.get("id")
+            if isinstance(decision_id, str):
+                ids.append(decision_id)
     return ids
 
 

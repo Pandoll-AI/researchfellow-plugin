@@ -340,3 +340,29 @@ def test_record_appends_after_partial_line(tmp_path, run_script):
     rows = json.loads(listed.stdout)
     assert [row["id"] for row in rows] == ["d-0001", "d-0002"]
     assert rows[1]["field"] == "missing_data"
+
+
+def test_check_ok_when_post_hoc_change_is_later_reverted(tmp_path, run_script):
+    project = _init_project(tmp_path, run_script)
+    _patch_state(project, verified_at="2020-01-01T00:00:00Z")
+    base = {"step": 11, "level": "C", "field": "primary_outcome", "alternatives": [],
+            "rationale": "", "impact": "", "source": "user", "artifact_ref": None, "kind": "decision"}
+    lines = [
+        {**base, "id": "d-0001", "at": "2019-12-01T00:00:00Z", "step": 5, "chosen": CHOSEN},
+        {**base, "id": "d-0002", "at": "2021-01-01T00:00:00Z", "chosen": "changed after results"},
+        {**base, "id": "d-0003", "at": "2021-02-01T00:00:00Z", "chosen": CHOSEN},
+    ]
+    (project / ".system" / "decisions.jsonl").write_text(
+        "".join(json.dumps(line, ensure_ascii=False) + "\n" for line in lines), encoding="utf-8"
+    )
+    result = run_script("decision_tool.py", "check", "--project-dir", str(project))
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["ok"] is True
+
+    # Without the reversal the earlier change is still reported.
+    (project / ".system" / "decisions.jsonl").write_text(
+        "".join(json.dumps(line, ensure_ascii=False) + "\n" for line in lines[:2]), encoding="utf-8"
+    )
+    result = run_script("decision_tool.py", "check", "--project-dir", str(project))
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["decisions"] == ["d-0002"]
