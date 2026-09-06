@@ -139,7 +139,9 @@ estimate), ask for confirmation (P4), then run
 succeeds. Invalid or mixed legacy state is a repair blocker, not a migration candidate.
 
 **Neither exists →** run `project_layout.py init --project-dir research`, then continue with the
-new-project path below. **Absent, argument is free-text →** go straight to S1 (treat the text as the idea).
+new-project path below.
+**Argument is exactly `doctor` →** run `scripts/env_check.py` (add `--project-dir research` when a project exists), print the JSON, then explain in 3 lines: which modes are available, what `next_action` says, and whether the MCP server was reachable. Do not start S1.
+**Absent, argument is free-text →** go straight to S1 (treat the text as the idea).
 
 **Absent, no usable argument →** show the 5+1 starting points with AskUserQuestion,
 **order fixed**:
