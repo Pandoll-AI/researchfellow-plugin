@@ -130,16 +130,19 @@ def test_real_forged_soft_retroactive_gate_blocks(run_script, tmp_path, fixtures
 
 
 def test_synthetic_is_aggregate_only_no_false_precision(run_script, tmp_path):
-    """The false-precision regression: a 2x2/synthetic result must NOT carry a
-    fabricated CI or p-value."""
+    """The false-precision regression: a 2x2/synthetic result may carry a Woolf
+    CI, but must not invent a p-value from aggregate counts."""
     (tmp_path / "state.json").write_text(json.dumps({"project_name": "t"}))
     proc = run_script(RUNNER, "--mode", "synthetic", "--project-dir", str(tmp_path))
     assert proc.returncode == 0, proc.stderr
     result = json.loads((tmp_path / "analysis" / "synthetic" / "results.json").read_text())
     glm = result["model_fits"]["glm_binomial"]
     assert glm["status"] == "aggregate_only"
-    assert glm.get("ci_p_available") is False
-    assert "or_ci95" not in glm and "p_value" not in glm
+    assert glm.get("ci_available") is True
+    assert glm.get("p_value_available") is False
+    assert "p_value" not in glm
+    assert glm["or_ci95"][0] < glm["odds_ratio"] < glm["or_ci95"][1]
+    assert glm["rr_ci95"][0] < glm["risk_ratio"] < glm["rr_ci95"][1]
 
 
 @requires_stats_stack

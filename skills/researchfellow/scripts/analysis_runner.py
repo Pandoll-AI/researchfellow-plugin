@@ -92,32 +92,57 @@ def compute_effects(row_counts: Dict[str, Any]) -> Dict[str, Optional[float]]:
 
 
 def effect_from_counts(row_counts: Dict[str, Any]) -> Dict[str, Any]:
-    """Aggregate 2x2 effect estimate — the HONEST result for aggregate input.
+    """Aggregate 2x2 effect estimate with Woolf (log-method) 95% CI.
 
-    A 2x2 table gives a point OR/RR and NOTHING more. A logistic/GLM fit on two
-    aggregated rows is a saturated model whose CI/p-value are artefacts, not
-    inference. So we deliberately return `status: aggregate_only` and no CI/p:
-    individual-level data (and the emitted analysis script) are required for a
-    real confidence interval. This is the fix for the "false precision" finding.
+    Four positive cells yield OR/RR point estimates and a Woolf log-method 95%
+    CI. A GLM fit on two aggregated rows would be saturated, so that model's
+    CI/p-value would be artefacts — but Woolf does not use that GLM. No
+    p-value is computed from counts; individual-level data (and the emitted
+    analysis script) are required for model-based inference.
     """
     n_exposed = int(row_counts.get("exposed", 0) or 0)
     n_unexposed = int(row_counts.get("unexposed", 0) or 0)
     if n_exposed <= 0 or n_unexposed <= 0:
         return {"status": "skipped", "reason": "insufficient_group_counts"}
 
+    a = int(row_counts.get("events_exposed", 0) or 0)
+    c = int(row_counts.get("events_unexposed", 0) or 0)
+    b = n_exposed - a
+    d = n_unexposed - c
+
     effects = compute_effects(row_counts)
-    return {
+    result: Dict[str, Any] = {
         "status": "aggregate_only",
         "method": "2x2_effect_estimate",
         "odds_ratio": effects["odds_ratio"],
         "risk_ratio": effects["risk_ratio"],
-        "ci_p_available": False,
+        "p_value_available": False,
         "note": (
-            "OR/RR are point estimates from a 2x2 table. Confidence intervals and "
-            "p-values require individual-level data — run the emitted analysis "
-            "script on your records, do not report CI/p from aggregate counts."
+            "OR/RR point estimates from a 2x2 table with Woolf (log-method) 95% CI. "
+            "No p-value is computed from aggregate counts; run the emitted analysis "
+            "script on individual records for model-based inference."
         ),
     }
+
+    if min(a, b, c, d) <= 0:
+        result["ci_available"] = False
+        result["ci_reason"] = "zero_cell"
+        result["or_ci95"] = None
+        result["rr_ci95"] = None
+        return result
+
+    z = 1.96
+    or_est = (a * d) / (b * c)
+    rr_est = (a / (a + b)) / (c / (c + d))
+    se_log_or = math.sqrt(1 / a + 1 / b + 1 / c + 1 / d)
+    se_log_rr = math.sqrt(1 / a - 1 / (a + b) + 1 / c - 1 / (c + d))
+    ln_or = math.log(or_est)
+    ln_rr = math.log(rr_est)
+    result["ci_available"] = True
+    result["ci_method"] = "woolf_log"
+    result["or_ci95"] = [math.exp(ln_or - z * se_log_or), math.exp(ln_or + z * se_log_or)]
+    result["rr_ci95"] = [math.exp(ln_rr - z * se_log_rr), math.exp(ln_rr + z * se_log_rr)]
+    return result
 
 
 def fit_glm_individual(

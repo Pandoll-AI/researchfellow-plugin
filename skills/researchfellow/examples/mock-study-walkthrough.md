@@ -56,9 +56,9 @@ Step 1 완료 보고: PICO를 구조화했습니다. 산출물은 `research/01_p
 ### 4. Synthetic dry-run (planning) — honest, no false precision
 ```
 $ analysis_runner.py --mode synthetic --project-dir research/
-  glm status: aggregate_only   *** NOT REAL DATA ***
+  glm status: aggregate_only   ci: woolf_log   *** NOT REAL DATA ***
 ```
-Aggregate input returns `aggregate_only` — **no fabricated CI/p**.
+Aggregate input returns `aggregate_only` — Woolf (log-method) 95% CI, no p-value from counts.
 
 ### 5. Emit the reproducible analysis script (plan mode)
 ```
@@ -115,6 +115,6 @@ $ state_tool.py validate --project-dir research/   → schema=v3, violations=0
 - PHI stays local and screens clean before anything else.
 - The state machine judges structure deterministically; steps needing hard gates are
   blocked until those gates are approved (`exit 1`), from any entry path.
-- Analysis is honest: aggregate → point estimate only; individual data → real CI/p; the
-  reproducible R script is the authoritative artifact.
+- Analysis is honest: aggregate → OR/RR plus Woolf 95% CI (no p from counts); individual
+  data → model-based CI/p; the reproducible R script is the authoritative artifact.
 - Reporting coverage is design-aware and actionable.
