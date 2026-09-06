@@ -55,13 +55,13 @@ Take the free text and judge clarity by **how many of P·E·O are identifiable**
 
 1. Structure into PICO (`templates/pico-template.json` schema).
 2. Restate on one screen, **explicitly naming any uncertain field** (mark it
-   `"confidence": "low"` and say so).
+   `"confidence": "low"` and say so). `time.index_date_definition`이 비어 있으면
+   `confidence: low`로 표시하고 같은 한 번의 확인에 포함한다 (별도 왕복 금지).
 3. Confirm once: "이렇게 이해했는데 맞나요? 틀린 부분만 짚어주세요."
 4. On PICO confirm, also produce **two** `rival_hypotheses`, each
    `{hypothesis, refutation_condition}`. Write them into `idea.json`. A gap
    found by a quick search is not novelty — do **not** claim novelty because
    "빠른 검색에서 안 나왔다".
-   time zero가 명시되지 않았으면 `time.index_date_definition`을 `confidence: low`로 두고 Q5를 한 번 묻는다.
 5. Write `research/01_pico/idea.json`, mark step 1 `completed`, `ARTIFACT_CREATED` (idea).
 6. Hand off to Layer 2 (offer to bring materials), then continue toward Step 2.
 

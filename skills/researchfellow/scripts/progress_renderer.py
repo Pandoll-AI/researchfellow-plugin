@@ -47,6 +47,7 @@ ARTIFACT_NAMES_KO = {
     "submission_package": "제출 패키지", "revision": "리뷰 대응",
 }
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+_FIELD_SLUG_RE = re.compile(r"^[a-z0-9_]{1,40}$")
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -78,6 +79,27 @@ def _read_audit(path: str) -> List[Dict[str, Any]]:
             if isinstance(value, dict):
                 events.append(value)
     return events
+
+
+def _read_jsonl_tolerant(path: str) -> List[Dict[str, Any]]:
+    records: List[Dict[str, Any]] = []
+    with open(path, encoding="utf-8") as file:
+        for line in file:
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                records.append(value)
+    return records
+
+
+def _safe_decision_field(value: Any) -> str:
+    if isinstance(value, str) and _FIELD_SLUG_RE.fullmatch(value):
+        return value
+    return ""
 
 
 def _step_number(value: Any) -> Optional[int]:
@@ -300,9 +322,7 @@ def _event_message(event: Dict[str, Any], allowed_paths: set[str]) -> Optional[s
         "SESSION_RESUMED": "연구를 다시 이어서 진행했습니다",
         "SYNTHETIC_DATA_GENERATED": "합성 데이터 드라이런이 준비되었습니다",
         "DECISION_RECORDED": (
-            f"연구 결정이 기록되었습니다 ({details['field']})"
-            if isinstance(details.get("field"), str) and details.get("field")
-            else "연구 결정이 기록되었습니다"
+            f"연구 결정이 기록되었습니다 ({_safe_decision_field(details.get('field')) or 'field 생략'})"
         ),
     }
     return messages[event_type] + _safe_path_version(details, allowed_paths)
@@ -353,12 +373,13 @@ def render_decision_sections(records: Iterable[Dict[str, Any]]) -> str:
         "|---|---|---|---|---|---|",
     ]
     for record in decisions:
+        field = _safe_decision_field(record.get("field")) or "(field 생략)"
         lines.append(
             "| {at} | {step} | {level} | {field} | {chosen} | {source} |".format(
                 at=record.get("at", ""),
                 step=record.get("step", ""),
                 level=record.get("level", ""),
-                field=record.get("field", ""),
+                field=field,
                 chosen=_clip_chosen(record.get("chosen")),
                 source=record.get("source", ""),
             )
@@ -384,7 +405,7 @@ def render(project_dir: str) -> None:
     log = render_research_log(events, state)
     decisions_path = os.path.join(resolve_system_dir(project_dir), "decisions.jsonl")
     if os.path.isfile(decisions_path):
-        log = log.rstrip("\n") + "\n\n" + render_decision_sections(_read_audit(decisions_path))
+        log = log.rstrip("\n") + "\n\n" + render_decision_sections(_read_jsonl_tolerant(decisions_path))
     (root / "RESEARCH_LOG.md").write_text(log, encoding="utf-8")
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -19,7 +20,12 @@ from rf_paths import resolve_state_path, resolve_system_dir, resolve_system_file
 POST_HOC_FIELDS = frozenset({"primary_outcome", "primary_analysis"})
 SOURCES = ("user", "recommended_accepted", "autonomous")
 LEVELS = ("A", "B", "C")
-KINDS = ("decision", "knowledge_check")
+KINDS = ("decision", "knowledge_check", "exploratory")
+SLUG_RE = re.compile(r"^[a-z0-9_]{1,40}$")
+T0_UNKNOWN_NOTE = (
+    "실제 분석 결과는 등록되어 있으나 산출 시점을 확인할 수 없습니다. "
+    "verified_at, 감사 기록의 ARTIFACT_CREATED, 결과 파일 시각이 모두 없습니다."
+)
 
 
 def _emit(payload: Any, exit_code: int) -> None:
@@ -72,12 +78,26 @@ def _read_jsonl(path: str) -> List[Dict[str, Any]]:
     return records
 
 
+def _needs_leading_newline(path: str) -> bool:
+    if not os.path.isfile(path) or os.path.getsize(path) == 0:
+        return False
+    with open(path, "rb") as file:
+        file.seek(-1, os.SEEK_END)
+        return file.read(1) != b"\n"
+
+
 def _append_jsonl(path: str, record: Dict[str, Any]) -> None:
     directory = os.path.dirname(path)
     if directory:
         os.makedirs(directory, exist_ok=True)
+    prefix = "\n" if _needs_leading_newline(path) else ""
     with open(path, "a", encoding="utf-8") as file:
-        file.write(json.dumps(record, ensure_ascii=False) + "\n")
+        file.write(prefix + json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def _require_slug(value: Optional[str]) -> None:
+    if not isinstance(value, str) or not SLUG_RE.fullmatch(value):
+        _emit({"error": "field must be a slug"}, 1)
 
 
 def _next_decision_id(path: str) -> str:
@@ -170,10 +190,27 @@ def _artifact_created_times(events: List[Dict[str, Any]], artifact_id: str) -> L
     return times
 
 
-def _t0(state: Dict[str, Any], project_dir: str) -> Optional[datetime]:
-    real_results = _real_result_artifacts(state)
-    if not real_results:
+def _mtime_utc(project_dir: str, rel_path: Any) -> Optional[datetime]:
+    if not isinstance(rel_path, str) or not rel_path:
         return None
+    full = rel_path if os.path.isabs(rel_path) else os.path.join(project_dir, rel_path)
+    if not os.path.isfile(full):
+        return None
+    return datetime.fromtimestamp(os.path.getmtime(full), tz=timezone.utc)
+
+
+def _valid_real_results(state: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:
+    return [
+        (artifact_id, entry)
+        for artifact_id, entry in _real_result_artifacts(state)
+        if entry.get("validity") == "valid"
+    ]
+
+
+def _resolve_t0(state: Dict[str, Any], project_dir: str) -> Tuple[Optional[datetime], Optional[str]]:
+    real_results = _valid_real_results(state)
+    if not real_results:
+        return None, None
     events = _read_jsonl(resolve_system_file(project_dir, "audit"))
     candidates: List[datetime] = []
     for artifact_id, entry in real_results:
@@ -181,8 +218,16 @@ def _t0(state: Dict[str, Any], project_dir: str) -> Optional[datetime]:
         if verified is not None:
             candidates.append(verified)
             continue
-        candidates.extend(_artifact_created_times(events, artifact_id))
-    return min(candidates) if candidates else None
+        created = _artifact_created_times(events, artifact_id)
+        if created:
+            candidates.extend(created)
+            continue
+        mtime = _mtime_utc(project_dir, entry.get("path"))
+        if mtime is not None:
+            candidates.append(mtime)
+    if not candidates:
+        return None, "t0_unknown"
+    return min(candidates), None
 
 
 def cmd_record(args: argparse.Namespace) -> None:
@@ -197,6 +242,9 @@ def cmd_record(args: argparse.Namespace) -> None:
             field = "knowledge_check"
     elif not level or not field:
         _emit({"error": "--level and --field are required when --kind is decision"}, 1)
+    _require_slug(field)
+    if args.artifact_ref is not None:
+        _require_slug(args.artifact_ref)
 
     path = _decisions_path(args.project_dir)
     decision_id = _next_decision_id(path)
@@ -257,6 +305,22 @@ def cmd_list(args: argparse.Namespace) -> None:
     _emit(records, 0)
 
 
+def _last_pre_t0_chosen(records: List[Dict[str, Any]], field: Any, t0: datetime) -> Optional[str]:
+    last: Optional[str] = None
+    last_at: Optional[datetime] = None
+    for record in records:
+        if record.get("field") != field:
+            continue
+        at = _parse_iso(record.get("at"))
+        if at is None or at > t0:
+            continue
+        chosen = record.get("chosen")
+        if last_at is None or at >= last_at:
+            last_at = at
+            last = chosen if isinstance(chosen, str) else None
+    return last
+
+
 def _post_hoc_ids(records: List[Dict[str, Any]], t0: datetime) -> List[str]:
     ids: List[str] = []
     for record in records:
@@ -267,6 +331,9 @@ def _post_hoc_ids(records: List[Dict[str, Any]], t0: datetime) -> List[str]:
         at = _parse_iso(record.get("at"))
         if at is None or not (at > t0):
             continue
+        baseline = _last_pre_t0_chosen(records, record.get("field"), t0)
+        if isinstance(record.get("chosen"), str) and baseline is not None and record.get("chosen") == baseline:
+            continue
         decision_id = record.get("id")
         if isinstance(decision_id, str):
             ids.append(decision_id)
@@ -276,8 +343,10 @@ def _post_hoc_ids(records: List[Dict[str, Any]], t0: datetime) -> List[str]:
 def cmd_check(args: argparse.Namespace) -> None:
     _require_project_dir(args.project_dir)
     state = _load_state(args.project_dir)
-    t0 = _t0(state, args.project_dir)
+    t0, t0_reason = _resolve_t0(state, args.project_dir)
     if t0 is None:
+        if t0_reason == "t0_unknown":
+            _emit({"ok": False, "reason": "t0_unknown", "note": T0_UNKNOWN_NOTE}, 0)
         _emit({"ok": True}, 0)
     ids = _post_hoc_ids(_read_jsonl(_decisions_path(args.project_dir)), t0)
     if not ids:
@@ -287,7 +356,7 @@ def cmd_check(args: argparse.Namespace) -> None:
         "blocker": {
             "what": "실제 분석 결과를 확인한 뒤에 주요 결과 지표 또는 주분석이 바뀌었습니다",
             "why": "결과를 본 뒤 주요 지표나 주분석을 바꾸면, 미리 정해 둔 분석이 아니라 결과에 맞춰 해석을 고른 것으로 읽힙니다",
-            "unlock": "바뀐 결정을 탐색적 분석으로 표시하거나 원래 사전 지정 지표로 되돌리면 진행할 수 있습니다",
+            "unlock": "원래 사전 지정한 지표로 되돌리거나, 이번 변경을 탐색적 분석으로 기록하면 진행할 수 있습니다",
             "meanwhile": "탐색적 분석과 민감도 분석은 따로 정리할 수 있습니다",
         },
         "decisions": ids,

@@ -159,3 +159,81 @@ def test_renderer_appends_decisions_and_knowledge_check(tmp_path, run_script):
     assert "changes endpoint" not in log
     assert "in-hospital death" not in log
 
+
+def test_renderer_omits_non_slug_field(tmp_path, run_script):
+    project = tmp_path / "legacy"
+    project.mkdir()
+    (project / "state.json").write_text(
+        '{"project_name":"slug", "steps": {}, "gates": {}, "artifacts":{}}',
+        encoding="utf-8",
+    )
+    (project / "audit.jsonl").write_text(
+        '{"timestamp":"2026-07-17T01:00:00Z","event":"DECISION_RECORDED",'
+        '"details":{"decision_id":"d-0001","step":5,"level":"C","field":"a b","kind":"decision"}}\n',
+        encoding="utf-8",
+    )
+    (project / "decisions.jsonl").write_text(
+        json.dumps({
+            "id": "d-0001",
+            "at": "2026-07-17T01:00:00Z",
+            "step": 5,
+            "level": "C",
+            "field": "a b",
+            "chosen": "30-day mortality",
+            "source": "user",
+            "kind": "decision",
+        }, ensure_ascii=False)
+        + "\n",
+        encoding="utf-8",
+    )
+    proc = run_script(RENDERER, "render", "--project-dir", str(project))
+    assert proc.returncode == 0, proc.stderr
+    log = (project / "RESEARCH_LOG.md").read_text(encoding="utf-8")
+    assert "a b" not in log
+    assert "(field 생략)" in log
+    assert "연구 결정이 기록되었습니다 (field 생략)" in log
+
+
+def test_renderer_skips_corrupt_decision_lines(tmp_path, run_script):
+    project = tmp_path / "legacy"
+    project.mkdir()
+    (project / "state.json").write_text(
+        '{"project_name":"corrupt", "steps": {}, "gates": {}, "artifacts":{}}',
+        encoding="utf-8",
+    )
+    (project / "audit.jsonl").write_text("", encoding="utf-8")
+    (project / "decisions.jsonl").write_text(
+        json.dumps({
+            "id": "d-0001",
+            "at": "2026-07-17T01:00:00Z",
+            "step": 5,
+            "level": "C",
+            "field": "primary_outcome",
+            "chosen": "visible-chosen",
+            "source": "user",
+            "kind": "decision",
+        }, ensure_ascii=False)
+        + "\nthis is not json\n"
+        + json.dumps({
+            "id": "d-0002",
+            "at": "2026-07-17T01:05:00Z",
+            "step": 5,
+            "level": "A",
+            "field": "knowledge_check",
+            "chosen": "Time zero는 노출 시작 시점이다",
+            "source": "autonomous",
+            "kind": "knowledge_check",
+        }, ensure_ascii=False)
+        + "\n",
+        encoding="utf-8",
+    )
+    proc = run_script(RENDERER, "render", "--project-dir", str(project))
+    assert proc.returncode == 0, proc.stderr
+    log_path = project / "RESEARCH_LOG.md"
+    assert log_path.is_file()
+    log = log_path.read_text(encoding="utf-8")
+    assert "## Decisions" in log
+    assert "visible-chosen" in log
+    assert "this is not json" not in log
+    assert "Time zero는 노출 시작 시점이다" in log
+
