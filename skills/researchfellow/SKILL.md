@@ -71,6 +71,13 @@ primary 변경.
 예: 30일 사망을 primary로 둘지 병원 내 사망을 primary로 둘지는 연구의 의미를
 바꾸므로 연구자가 확인한다.
 
+Level B/C가 P4로 확정되면 즉시 `decision_tool.py record`로 남긴다. source는 사용자가
+추천을 그대로 받으면 `recommended_accepted`, 바꾸면 `user`이다. Level A로 산출물을
+바꿨으면 `source=autonomous`로 기록한다. Knowledge Check 문장은 P5 뒤에
+`--kind knowledge_check`로 기록한다. Step 10·11 `can-enter` 전에
+`decision_tool.py check`를 돌리고, exit 2이면 P7 차단설명으로 그 JSON을 그대로 풀어
+말한다. 게이트가 아니라 차단설명이며, 기존 hard gate 3종은 늘리지 않는다.
+
 ## Educational narrative
 
 사용자는 이전 단계의 정의를 기억하지 않는다고 가정한다. B/C 판단을 요청하기
@@ -390,7 +397,8 @@ Events: `PROJECT_INIT`, `STEP_STARTED`, `STEP_COMPLETED`, `GATE_APPROVED`,
 `GATE_REJECTED`, `GATE_CHANGES_REQUESTED`, `ARTIFACT_CREATED`, `ARTIFACT_UPDATED`,
 `ENTRY_POINT`, `ARTIFACT_IMPORTED`, `ARTIFACT_REVERSE_FILLED`, `GATE_RETROACTIVE`,
 `MATERIAL_RECLASSIFIED`, `PROVENANCE_ATTESTED`, `ARTIFACT_INVALIDATED`, `SCHEMA_UPGRADED`,
-`PHI_DETECTED`, `SESSION_RESUMED`, `SYNTHETIC_DATA_GENERATED`.
+`PHI_DETECTED`, `SESSION_RESUMED`, `SYNTHETIC_DATA_GENERATED`,
+`DECISION_RECORDED`.
 
 ### Telemetry emission points (1:1 with the audit events above)
 

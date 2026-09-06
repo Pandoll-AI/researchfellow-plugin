@@ -61,6 +61,7 @@ Take the free text and judge clarity by **how many of P·E·O are identifiable**
    `{hypothesis, refutation_condition}`. Write them into `idea.json`. A gap
    found by a quick search is not novelty — do **not** claim novelty because
    "빠른 검색에서 안 나왔다".
+   time zero가 명시되지 않았으면 `time.index_date_definition`을 `confidence: low`로 두고 Q5를 한 번 묻는다.
 5. Write `research/01_pico/idea.json`, mark step 1 `completed`, `ARTIFACT_CREATED` (idea).
 6. Hand off to Layer 2 (offer to bring materials), then continue toward Step 2.
 
@@ -77,6 +78,7 @@ the clear path immediately — do not exhaust the bank.* (Rigidity is the failur
 - **Q3 (comparator):** "비교 대상이 있나요 — 다른 치료를 받은 군, 혹은 치료받지 않은 군?"
 - **Q4 (data access):** "이 분석에 필요한 데이터에 접근하실 수 있나요? 어떤 형태인가요
   (EMR 추출, 레지스트리, 공개 데이터 등)?"
+- **Q5 (time zero):** "추적을 언제부터 시작할까요 — 노출이 시작된 시점, 진단 시점, 입원 시점 중 어느 것을 시작점(time zero)으로 삼을지에 따라 비교의 의미가 달라집니다."
 
 ### vague (0 identified) — 3 probes → candidate directions
 

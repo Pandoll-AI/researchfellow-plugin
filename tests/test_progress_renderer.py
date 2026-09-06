@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 
 import pytest
@@ -94,3 +95,67 @@ def test_renderer_keeps_exit_zero_for_broken_state(tmp_path, run_script):
     proc = run_script(RENDERER, "render", "--project-dir", str(project))
     assert proc.returncode == 0
     assert len(proc.stderr.splitlines()) == 1
+
+
+def test_renderer_appends_decisions_and_knowledge_check(tmp_path, run_script):
+    project = tmp_path / "legacy"
+    project.mkdir()
+    (project / "state.json").write_text(
+        '{"project_name":"decisions", "steps": {}, "gates": {}, "artifacts":{}}',
+        encoding="utf-8",
+    )
+    (project / "audit.jsonl").write_text(
+        '{"timestamp":"2026-07-17T01:00:00Z","event":"DECISION_RECORDED",'
+        '"details":{"decision_id":"d-0001","step":5,"level":"C","field":"primary_outcome","kind":"decision"}}\n',
+        encoding="utf-8",
+    )
+    long_chosen = "30-day mortality " + ("x" * 100)
+    (project / "decisions.jsonl").write_text(
+        json.dumps({
+            "id": "d-0001",
+            "at": "2026-07-17T01:00:00Z",
+            "step": 5,
+            "level": "C",
+            "field": "primary_outcome",
+            "chosen": long_chosen,
+            "alternatives": ["in-hospital death"],
+            "rationale": "clinical importance",
+            "impact": "changes endpoint",
+            "source": "user",
+            "artifact_ref": "protocol",
+            "kind": "decision",
+            "_phi": {"masked": True, "rules": ["phone_kr"]},
+        }, ensure_ascii=False)
+        + "\n"
+        + json.dumps({
+            "id": "d-0002",
+            "at": "2026-07-17T01:05:00Z",
+            "step": 5,
+            "level": "A",
+            "field": "knowledge_check",
+            "chosen": "Time zero는 노출 시작 시점이다",
+            "alternatives": [],
+            "rationale": "",
+            "impact": "",
+            "source": "autonomous",
+            "artifact_ref": None,
+            "kind": "knowledge_check",
+        }, ensure_ascii=False)
+        + "\n",
+        encoding="utf-8",
+    )
+    proc = run_script(RENDERER, "render", "--project-dir", str(project))
+    assert proc.returncode == 0, proc.stderr
+    log = (project / "RESEARCH_LOG.md").read_text(encoding="utf-8")
+    assert "연구 결정이 기록되었습니다 (primary_outcome)" in log
+    assert "## Decisions" in log
+    assert "| At | Step | Level | Field | Chosen | Source |" in log
+    assert "primary_outcome" in log
+    assert long_chosen[:80] in log
+    assert long_chosen not in log
+    assert "## Knowledge Check" in log
+    assert "Step 5: Time zero는 노출 시작 시점이다" in log
+    assert "clinical importance" not in log
+    assert "changes endpoint" not in log
+    assert "in-hospital death" not in log
+

@@ -53,6 +53,7 @@ B/C를 열기 전에 그 자리에서 쓰인 용어를 정의부터 한 줄로 �
 | Level A 작업 (포맷·코드·동의어·보고지침 매핑) | P3 → P5 | 묻지 않고 처리한 뒤 알린다 |
 | Level B 방법 선택 (설계·모형·결측·민감도) | P2 + P4 | 추천·이유·대안·영향. 거절하지 않으면 추천안 |
 | Level C 핵심 결정 (질문·outcome·time zero·estimand 등) | P2 + P4 | 명시적 확인 전에는 확정하지 않는다 |
+| Level B/C 확정 직후 | P5 | decision_tool record 후 보고 한 줄에 "기록됨(d-000N)"을 붙인다 |
 | S0 resume + participation | P6 | research card가 있으면 1줄로 먼저 보여 주고 13-step 현황을 렌더한다 |
 | Desk forms (`desk-interface.md`) | P2 + P6 | 기존 라벨과 상태 표현을 사용해 이해와 현황을 함께 보여 준다 |
 | PHI warning / fail-closed / can-enter block | P7 | 차단설명 4요소를 같은 순서로 적용한다 |

@@ -35,7 +35,9 @@ only), `project_name`, `research_card` (nullable; PICO 확정·변경 시 갱신
 
 **Outside the DAG (never registered as artifacts, never a `[req]`/gate input):**
 `research/.system/compliance-checklist.json` (self-attested only — no deterministic
-consequence), `research/.system/desk/` (Desk sessions/answers), and the entire
+consequence), `research/.system/desk/` (Desk sessions/answers),
+`research/.system/decisions.jsonl` (결정 기록 — 산출물이 아니며 게이트 입력이 아님),
+and the entire
 `research/rehearsal/` tree (synthetic practice outputs — physically separated from
 real artifacts; rehearsal activity never flips `execution_mode` to `real_data` and
 never touches `steps.*.status`).
@@ -279,7 +281,8 @@ Existing: `PROJECT_INIT`, `STEP_STARTED`, `STEP_COMPLETED`, `GATE_APPROVED`,
 
 New (v2): `ENTRY_POINT`, `ARTIFACT_IMPORTED`, `ARTIFACT_REVERSE_FILLED`,
 `GATE_RETROACTIVE`, `MATERIAL_RECLASSIFIED`, `PROVENANCE_ATTESTED`,
-`ARTIFACT_INVALIDATED`, `SCHEMA_UPGRADED`, `PHI_DETECTED`.
+`ARTIFACT_INVALIDATED`, `SCHEMA_UPGRADED`, `PHI_DETECTED`,
+`DECISION_RECORDED`.
 
 ## state_tool.py usage contract
 

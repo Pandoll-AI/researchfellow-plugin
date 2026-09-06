@@ -17,7 +17,7 @@ import sys
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from rf_paths import resolve_state_path, resolve_system_file
+from rf_paths import resolve_state_path, resolve_system_dir, resolve_system_file
 from state_tool import GATE_TYPE, STEP_LABELS_KO, STEP_NAMES, V1_GATE_MAP, detect_schema
 
 
@@ -36,6 +36,7 @@ KNOWN_EVENTS = {
     "ARTIFACT_REVERSE_FILLED", "GATE_RETROACTIVE", "MATERIAL_RECLASSIFIED",
     "PROVENANCE_ATTESTED", "ARTIFACT_INVALIDATED", "SCHEMA_UPGRADED",
     "PHI_DETECTED", "SESSION_RESUMED", "SYNTHETIC_DATA_GENERATED",
+    "DECISION_RECORDED",
 }
 ARTIFACT_NAMES_KO = {
     "idea": "연구 질문", "literature": "문헌 검색 결과", "evidence_table": "근거표",
@@ -298,6 +299,11 @@ def _event_message(event: Dict[str, Any], allowed_paths: set[str]) -> Optional[s
         "PHI_DETECTED": "개인정보 위험 신호가 감지되어 검토가 필요합니다",
         "SESSION_RESUMED": "연구를 다시 이어서 진행했습니다",
         "SYNTHETIC_DATA_GENERATED": "합성 데이터 드라이런이 준비되었습니다",
+        "DECISION_RECORDED": (
+            f"연구 결정이 기록되었습니다 ({details['field']})"
+            if isinstance(details.get("field"), str) and details.get("field")
+            else "연구 결정이 기록되었습니다"
+        ),
     }
     return messages[event_type] + _safe_path_version(details, allowed_paths)
 
@@ -327,6 +333,47 @@ def render_research_log(events: Iterable[Dict[str, Any]], state: Dict[str, Any])
     return "\n".join(lines) + "\n"
 
 
+def _clip_chosen(value: Any, limit: int = 80) -> str:
+    text = value if isinstance(value, str) else ""
+    return text[:limit]
+
+
+def render_decision_sections(records: Iterable[Dict[str, Any]]) -> str:
+    decisions: List[Dict[str, Any]] = []
+    knowledge: List[Dict[str, Any]] = []
+    for record in records:
+        if record.get("kind") == "knowledge_check":
+            knowledge.append(record)
+        else:
+            decisions.append(record)
+    lines = [
+        "## Decisions",
+        "",
+        "| At | Step | Level | Field | Chosen | Source |",
+        "|---|---|---|---|---|---|",
+    ]
+    for record in decisions:
+        lines.append(
+            "| {at} | {step} | {level} | {field} | {chosen} | {source} |".format(
+                at=record.get("at", ""),
+                step=record.get("step", ""),
+                level=record.get("level", ""),
+                field=record.get("field", ""),
+                chosen=_clip_chosen(record.get("chosen")),
+                source=record.get("source", ""),
+            )
+        )
+    lines.extend(["", "## Knowledge Check", ""])
+    if knowledge:
+        for record in knowledge:
+            step = record.get("step", "")
+            sentence = record.get("chosen", "")
+            lines.append(f"- Step {step}: {sentence}")
+    else:
+        lines.append("- 없음")
+    return "\n".join(lines) + "\n"
+
+
 def render(project_dir: str) -> None:
     state_path = resolve_state_path(project_dir)
     audit_path = resolve_system_file(project_dir, "audit")
@@ -334,7 +381,11 @@ def render(project_dir: str) -> None:
     events = _read_audit(audit_path)
     root = Path(project_dir)
     (root / "PROGRESS.md").write_text(render_progress(state), encoding="utf-8")
-    (root / "RESEARCH_LOG.md").write_text(render_research_log(events, state), encoding="utf-8")
+    log = render_research_log(events, state)
+    decisions_path = os.path.join(resolve_system_dir(project_dir), "decisions.jsonl")
+    if os.path.isfile(decisions_path):
+        log = log.rstrip("\n") + "\n\n" + render_decision_sections(_read_audit(decisions_path))
+    (root / "RESEARCH_LOG.md").write_text(log, encoding="utf-8")
 
 
 def build_parser() -> argparse.ArgumentParser:
