@@ -334,8 +334,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/researchfellow/scripts/analysis_runner.py \
 ```
 
 The emitted `analysis/scripts/analysis.R` is the authoritative analysis the user runs;
-`--mode real` gives a Python preview and (aggregate input) only a point estimate — never
-a fabricated CI/p.
+`--mode real` gives a Python preview and (aggregate input) point estimates with a Woolf
+95% CI — never a p-value from counts.
 
 **At the manuscript step (11/12)**, screen reporting-guideline coverage:
 
