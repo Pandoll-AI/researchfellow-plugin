@@ -5,7 +5,7 @@
 > LLM) reason with it to pick an appropriate method, then record the choice as an
 > `analysis_plan` artifact. You do **not** invent numbers — `analysis_runner.py`
 > emits a reproducible script and (when individual data + deps are present) fits
-> real models. Aggregate 2×2 input yields a point estimate only, never CI/p.
+> real models. Aggregate 2×2 input yields point estimates with Woolf (log-method) 95% CI — never a p-value.
 
 Scope: retrospective observational designs (cohort, case-control, cross-sectional)
 on routinely-collected data (EMR/claims/registry). Prediction models → TRIPOD
