@@ -1,3 +1,5 @@
+> **이 저장소는 2026-09-06에 `emergency-lee/researchfellow-plugin`로 옮겨졌고 아카이브되었습니다. 최신 코드·설치 안내: https://github.com/emergency-lee/researchfellow-plugin**
+
 <p align="center">
   <a href="https://researchfellow.vercel.app">
     <img src="assets/hero.png" alt="ResearchFellow — Your AI co-researcher, idea to manuscript" width="100%">
